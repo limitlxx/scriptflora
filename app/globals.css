@@ -1,0 +1,246 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
+@import '@xyflow/react/dist/base.css';
+
+@theme inline {
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-muted: var(--accent-muted);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-elevated: var(--elevated);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-canvas: var(--canvas);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.9);
+  --radius-3xl: calc(var(--radius) * 2.4);
+}
+
+:root {
+  color-scheme: dark;
+
+  /* near-black canvas */
+  --canvas: oklch(0.112 0.003 285);
+  --background: oklch(0.125 0.003 285);
+  --foreground: oklch(0.965 0.002 285);
+
+  /* node surfaces — a hair lifted off the canvas */
+  --card: oklch(0.201 0.005 285);
+  --card-foreground: oklch(0.965 0.002 285);
+  --elevated: oklch(0.235 0.006 285);
+  --popover: oklch(0.216 0.006 285);
+  --popover-foreground: oklch(0.965 0.002 285);
+
+  /* soft luminous violet */
+  --primary: oklch(0.685 0.152 296);
+  --primary-foreground: oklch(0.145 0.004 285);
+  --accent: oklch(0.685 0.152 296);
+  --accent-foreground: oklch(0.145 0.004 285);
+  --accent-muted: oklch(0.685 0.152 296 / 12%);
+
+  --secondary: oklch(0.255 0.006 285);
+  --secondary-foreground: oklch(0.93 0.002 285);
+  --muted: oklch(0.24 0.005 285);
+  --muted-foreground: oklch(0.62 0.008 285);
+
+  --destructive: oklch(0.63 0.17 22);
+  --destructive-foreground: oklch(0.97 0.005 285);
+  --success: oklch(0.72 0.13 158);
+  --warning: oklch(0.78 0.13 78);
+
+  --border: oklch(1 0 0 / 8%);
+  --border-strong: oklch(1 0 0 / 14%);
+  --input: oklch(1 0 0 / 11%);
+  --ring: oklch(0.685 0.152 296 / 55%);
+
+  --radius: 0.875rem;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection {
+    background: oklch(0.685 0.152 296 / 28%);
+  }
+}
+
+@layer utilities {
+  /* delicate node shadow — depth without heaviness */
+  .shadow-node {
+    box-shadow:
+      0 0 0 0.5px oklch(1 0 0 / 4%),
+      0 1px 2px oklch(0 0 0 / 40%),
+      0 8px 24px -6px oklch(0 0 0 / 55%);
+  }
+  .shadow-float {
+    box-shadow:
+      0 0 0 0.5px oklch(1 0 0 / 6%),
+      0 2px 6px oklch(0 0 0 / 45%),
+      0 16px 40px -12px oklch(0 0 0 / 65%);
+  }
+  .glow-accent {
+    box-shadow:
+      0 0 0 1px oklch(0.685 0.152 296 / 55%),
+      0 0 0 4px oklch(0.685 0.152 296 / 10%),
+      0 8px 32px -8px oklch(0.685 0.152 296 / 30%);
+  }
+  .text-gradient {
+    background: linear-gradient(
+      180deg,
+      oklch(0.99 0.002 285) 0%,
+      oklch(0.74 0.01 285) 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+/* ---- React Flow overrides: elegant, thin, calm ---- */
+.react-flow {
+  --xy-background-color: var(--canvas);
+  --xy-edge-stroke-default: oklch(1 0 0 / 18%);
+  --xy-edge-stroke-width-default: 1;
+  --xy-edge-stroke-selected-default: var(--primary);
+  --xy-connectionline-stroke-default: var(--primary);
+  --xy-attribution-background-color-default: transparent;
+}
+
+.react-flow__attribution {
+  display: none;
+}
+
+.react-flow__node {
+  font-family: inherit;
+  font-size: inherit;
+}
+
+/* we render our own selection treatment on the node itself */
+.react-flow__node.selected,
+.react-flow__node:focus,
+.react-flow__node:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.react-flow__handle {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: oklch(0.42 0.01 285);
+  border: 1px solid oklch(1 0 0 / 22%);
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    transform 160ms ease;
+}
+.react-flow__handle:hover,
+.react-flow__node:hover .react-flow__handle {
+  background: var(--primary);
+  border-color: oklch(0.685 0.152 296 / 70%);
+}
+.react-flow__handle-left {
+  left: -4px;
+}
+.react-flow__handle-right {
+  right: -4px;
+}
+.react-flow__handle.connectionindicator:hover {
+  transform: scale(1.35);
+}
+
+.react-flow__edge-path {
+  stroke-linecap: round;
+}
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--primary);
+}
+
+.react-flow__minimap {
+  border-radius: 10px;
+  overflow: hidden;
+}
+.react-flow__minimap-mask {
+  fill: oklch(0 0 0 / 55%);
+}
+
+.react-flow__selection {
+  background: oklch(0.685 0.152 296 / 8%);
+  border: 1px solid oklch(0.685 0.152 296 / 45%);
+  border-radius: 6px;
+}
+
+/* flowing dashes on animated edges */
+@keyframes edge-flow {
+  from {
+    stroke-dashoffset: 12;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.edge-flowing {
+  stroke-dasharray: 4 4;
+  animation: edge-flow 0.6s linear infinite;
+}
+
+/* thin, unobtrusive scrollbars inside nodes */
+.scroll-slim {
+  scrollbar-width: thin;
+  scrollbar-color: oklch(1 0 0 / 14%) transparent;
+}
+.scroll-slim::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scroll-slim::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scroll-slim::-webkit-scrollbar-thumb {
+  background: oklch(1 0 0 / 14%);
+  border-radius: 9999px;
+}
+.scroll-slim::-webkit-scrollbar-thumb:hover {
+  background: oklch(1 0 0 / 24%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
