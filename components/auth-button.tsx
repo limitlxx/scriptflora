@@ -1,7 +1,6 @@
 'use client'
 
 import { useAuth } from '@/components/auth-context'
-import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { ArrowRight, Copy, Check, Loader2, RefreshCw, FolderKanban } from 'lucide-react'
 import { openLoginWithChatGPTConsentPopup } from '@opencoredev/loginwithchatgpt-react'
@@ -9,15 +8,16 @@ import { OpenAiMark } from '@/components/openai-mark'
 import { cn } from '@/lib/utils'
 
 export function AuthButton() {
-  const router = useRouter()
   const auth = useAuth()
 
-  // Auto-redirect after login completes
+  // Auto-redirect after login completes.
+  // Use window.location (hard nav) not router.replace (soft nav) so middleware
+  // re-runs with the newly set lwc_session cookie — soft nav uses cached middleware result.
   useEffect(() => {
     if (auth.status === 'authenticated') {
-      router.replace('/projects')
+      window.location.href = '/projects'
     }
-  }, [auth.status, router])
+  }, [auth.status])
 
   if (auth.status === 'loading') {
     return (
@@ -35,7 +35,7 @@ export function AuthButton() {
       <div className="flex flex-col items-center gap-2">
         <button
           type="button"
-          onClick={() => router.replace('/projects')}
+          onClick={() => { window.location.href = '/projects' }}
           className="group flex items-center gap-2.5 rounded-xl bg-primary px-4 py-2.5 text-[13px] font-medium text-primary-foreground hover:opacity-90 transition-opacity"
         >
           <FolderKanban className="size-4" />
