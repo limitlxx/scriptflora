@@ -27,7 +27,7 @@ export type GenerationSettings = {
 const MODELS = ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'] as const
 const SUPPORTS_FAST = new Set(['gpt-5.5', 'gpt-5.4'])
 
-async function logout() {
+async function logoutFromChatGPT() {
   try {
     await fetch('/api/chatgpt/logout', { method: 'POST' })
   } catch { /* best-effort */ }
@@ -74,7 +74,7 @@ export function TopBar({
 
   const handleLogout = async () => {
     setMenuOpen(false)
-    await logout()
+    await logoutFromChatGPT()
     router.replace('/')
   }
 

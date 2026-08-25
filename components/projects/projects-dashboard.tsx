@@ -5,14 +5,15 @@ import { useState } from 'react'
 import {
   ArrowUpRight,
   FolderKanban,
+  LogOut,
   Plus,
   Search,
-  Sparkles,
   Trash2,
   X,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useProjects } from '@/lib/store'
+import { Logo } from '@/components/logo'
 
 const ACCENTS = [
   'from-primary/20 to-transparent',
@@ -91,24 +92,35 @@ export function ProjectsDashboard() {
     router.push(`/canvas?project=${id}`)
   }
 
+  const handleLogout = async () => {
+    try { await fetch('/api/chatgpt/logout', { method: 'POST' }) } catch { /* best-effort */ }
+    router.replace('/')
+  }
+
   return (
     <main className="min-h-dvh bg-background text-foreground">
       {/* Header */}
       <header className="flex h-14 items-center justify-between border-b border-white/[0.06] px-5 md:px-10">
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <span className="flex size-7 items-center justify-center rounded-lg bg-primary/15 text-primary">
-            <Sparkles className="size-3.5" />
-          </span>
-          ScriptFlora
+        <Logo />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
+          >
+            <Plus className="size-3.5" />
+            New project
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleLogout()}
+            title="Sign out"
+            aria-label="Sign out"
+            className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-white/[0.06] hover:text-foreground transition-colors"
+          >
+            <LogOut className="size-3.5" />
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setCreateOpen(true)}
-          className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground transition-opacity hover:opacity-90"
-        >
-          <Plus className="size-3.5" />
-          New project
-        </button>
       </header>
 
       <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-5 py-10 md:px-10 md:py-14">

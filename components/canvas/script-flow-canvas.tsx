@@ -36,7 +36,7 @@ import { ContinuityNode } from '@/components/nodes/continuity-node'
 import { OutputNode } from '@/components/nodes/output-node'
 import { ExportNode } from '@/components/nodes/export-node'
 import { TopBar, type GenerateState, type GenerationSettings } from './top-bar'
-import { CanvasControls } from './canvas-controls'
+import { CanvasControls, type CanvasMode } from './canvas-controls'
 import { AddNodeMenu, type AddNodeRequest } from './add-node-menu'
 import { EmptyState } from './empty-state'
 import { FloatingSidebar } from './floating-sidebar'
@@ -169,6 +169,8 @@ function Flow({ projectId }: { projectId: string }) {
   })
 
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
+  const [canvasMode, setCanvasMode] = useState<CanvasMode>('pointer')
+  const [showHelp, setShowHelp] = useState(false)
   const [generateState, setGenerateState] = useState<GenerateState>('idle')
   const [generateError, setGenerateError] = useState<string | undefined>()
   const [preflightMessage, setPreflightMessage] = useState<string | undefined>()
@@ -195,9 +197,12 @@ function Flow({ projectId }: { projectId: string }) {
     localStorage.setItem('sf:gen-settings', JSON.stringify(next))
   }, [])
 
-  const { screenToFlowPosition } = useReactFlow()
+  const { screenToFlowPosition, fitView } = useReactFlow()
   const timers = useRef<number[]>([])
   const activeGenId = useRef<string | null>(null)
+  // Stable ref so the keydown closure can call fitView without a stale capture
+  const fitViewRef = useRef(fitView)
+  useEffect(() => { fitViewRef.current = fitView }, [fitView])
 
   // Autosave + expose nodes for export
   useEffect(() => {
@@ -207,6 +212,96 @@ function Flow({ projectId }: { projectId: string }) {
   }, [nodes, edges, projectId])
 
   useEffect(() => () => { for (const t of timers.current) window.clearTimeout(t) }, [])
+
+  // ── Keyboard shortcuts ──────────────────────────────────────────────────────
+  // Skip when focus is inside an input/textarea so typing isn't intercepted.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName
+      const editable = (e.target as HTMLElement).isContentEditable
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || editable) return
+
+      const meta = e.metaKey || e.ctrlKey
+
+      // ? — toggle shortcut help
+      if (e.key === '?') { e.preventDefault(); setShowHelp((v) => !v); return }
+      // Escape — close help or deselect
+      if (e.key === 'Escape') { setShowHelp(false); return }
+
+      // Delete / Backspace — delete selected nodes (locked nodes are skipped)
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        setNodes((cur) => {
+          const toDelete = new Set(cur.filter((n) => n.selected && !n.data.locked).map((n) => n.id))
+          if (toDelete.size === 0) return cur
+          setEdges((edges) => edges.filter((ed) => !toDelete.has(ed.source) && !toDelete.has(ed.target)))
+          return cur.filter((n) => !toDelete.has(n.id))
+        })
+        return
+      }
+
+      // L — lock selected nodes
+      if (e.key === 'l' || e.key === 'L') {
+        e.preventDefault()
+        setNodes((cur) => cur.map((n) => n.selected ? { ...n, data: { ...n.data, locked: true } } as typeof n : n))
+        return
+      }
+
+      // U — unlock selected nodes
+      if (e.key === 'u' || e.key === 'U') {
+        e.preventDefault()
+        setNodes((cur) => cur.map((n) => n.selected ? { ...n, data: { ...n.data, locked: false } } as typeof n : n))
+        return
+      }
+
+      // A — approve selected content nodes
+      if (e.key === 'a' || e.key === 'A') {
+        e.preventDefault()
+        setNodes((cur) => cur.map((n) => {
+          if (!n.selected || n.type !== 'content') return n
+          return { ...n, data: { ...n.data, approved: true, status: 'approved' } } as typeof n
+        }))
+        return
+      }
+
+      // Cmd/Ctrl + D — duplicate selected nodes
+      if (meta && e.key === 'd') {
+        e.preventDefault()
+        setNodes((cur) => {
+          const selected = cur.filter((n) => n.selected)
+          if (selected.length === 0) return cur
+          const clones = selected.map((n) => ({
+            ...n,
+            id: nextId(n.type ?? 'node'),
+            position: { x: n.position.x + 40, y: n.position.y + 40 },
+            selected: false,
+            data: { ...n.data, approved: false, locked: false, stageKey: '' },
+          } as typeof n))
+          return [...cur, ...clones]
+        })
+        return
+      }
+
+      // S — switch pointer ↔ select mode
+      if (e.key === 's' || e.key === 'S') {
+        if (meta) return // Cmd+S = browser save, ignore
+        e.preventDefault()
+        setCanvasMode((m) => m === 'pointer' ? 'select' : 'pointer')
+        return
+      }
+
+      // F — fit view
+      if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault()
+        // fitView is accessible via useReactFlow — call it via the ref
+        fitViewRef.current?.()
+        return
+      }
+    }
+
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [setNodes, setEdges])
 
   const update = useCallback((id: string, patch: Record<string, unknown>) => {
     setNodes((cur) => cur.map((n) => n.id === id ? ({ ...n, data: { ...n.data, ...patch } } as ScriptFlowNode) : n))
@@ -296,10 +391,20 @@ function Flow({ projectId }: { projectId: string }) {
     }
   }, [update, setNodes, setEdges, regenerateSingleNode])
 
-  // Continuity/output nodes get a simulated regenerate
+  // Ref so actExtended can call handleGenerate without a circular dep
+  const handleGenerateRef = useRef<() => Promise<void>>()
+
+  // Continuity/output nodes get a simulated regenerate; skill nodes trigger full generation
   const actExtended = useCallback((id: string, action: NodeAction) => {
     if (action === 'regenerate') {
       const node = nodes.find((n) => n.id === id)
+
+      // Skill node → run the full pipeline generate
+      if (node?.type === 'skill') {
+        void handleGenerateRef.current?.()
+        return
+      }
+
       if (node?.type === 'continuity' || node?.type === 'output') {
         update(id, { status: 'generating' })
         let p = 0
@@ -395,6 +500,9 @@ function Flow({ projectId }: { projectId: string }) {
     }
   }, [nodes, edges, setNodes, setEdges, settings])
 
+  // Keep the ref in sync so actExtended can call handleGenerate without circular deps
+  useEffect(() => { handleGenerateRef.current = handleGenerate }, [handleGenerate])
+
   const onConnect: OnConnect = useCallback((connection: Connection) => setEdges((c) => addEdge({ ...connection, type: 'smoothstep' }, c)), [setEdges])
 
   const handlePaneDoubleClick = useCallback((event: React.MouseEvent) => {
@@ -449,12 +557,17 @@ function Flow({ projectId }: { projectId: string }) {
           minZoom={0.2}
           maxZoom={2}
           proOptions={{ hideAttribution: true }}
-          selectionOnDrag
+          selectionOnDrag={canvasMode === 'select'}
+          panOnDrag={canvasMode === 'pointer'}
           panOnScroll
           zoomOnDoubleClick={false}
           nodesDraggable
           elevateNodesOnSelect
           elevateEdgesOnSelect
+          // Let our custom keydown handler own deletion so we can respect locked nodes
+          deleteKeyCode={null}
+          // Shift = add to selection
+          multiSelectionKeyCode="Shift"
         >
           <Background variant={BackgroundVariant.Dots} gap={26} size={1} color="oklch(1 0 0 / 7%)" />
           <MiniMap
@@ -479,10 +592,62 @@ function Flow({ projectId }: { projectId: string }) {
           settings={settings}
           onSettingsChange={handleSettingsChange}
         />
-        <CanvasControls />
+        <CanvasControls mode={canvasMode} onModeChange={setCanvasMode} onShowHelp={() => setShowHelp(true)} />
 
         {nodes.length === 0 && <EmptyState onAddBrief={addBrief} />}
         {menu && <AddNodeMenu position={menu} onSelect={handleAddNode} onClose={() => setMenu(null)} />}
+
+        {/* Keyboard shortcut help overlay */}
+        {showHelp && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Keyboard shortcuts"
+            onMouseDown={() => setShowHelp(false)}
+          >
+            <div
+              className="w-full max-w-md rounded-2xl border border-white/[0.1] bg-[oklch(0.16_0.005_285)] p-5 shadow-2xl"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-[13px] font-medium text-foreground">Keyboard shortcuts</h2>
+                <button
+                  type="button"
+                  onClick={() => setShowHelp(false)}
+                  className="text-muted-foreground hover:text-foreground text-[18px] leading-none"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              </div>
+              <div className="space-y-1">
+                {[
+                  ['Delete / ⌫', 'Delete selected nodes (locked nodes are skipped)'],
+                  ['Shift + click', 'Add node to selection'],
+                  ['⌘D / Ctrl+D', 'Duplicate selected nodes'],
+                  ['L', 'Lock selected nodes'],
+                  ['U', 'Unlock selected nodes'],
+                  ['A', 'Approve selected content nodes'],
+                  ['S', 'Toggle pointer ↔ select mode'],
+                  ['F', 'Fit view'],
+                  ['?', 'Toggle this help panel'],
+                  ['Esc', 'Close panels / deselect'],
+                ].map(([key, desc]) => (
+                  <div key={key} className="flex items-center justify-between rounded-lg px-2 py-1.5 hover:bg-white/[0.04]">
+                    <span className="text-[11.5px] text-muted-foreground">{desc}</span>
+                    <kbd className="ml-4 shrink-0 rounded-md border border-white/[0.12] bg-white/[0.06] px-2 py-0.5 font-mono text-[10.5px] text-foreground/80">
+                      {key}
+                    </kbd>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-4 text-[10.5px] text-muted-foreground/60">
+                Shortcuts are disabled while typing in a node field.
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </NodeActionProvider>
   )

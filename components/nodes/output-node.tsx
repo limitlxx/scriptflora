@@ -20,57 +20,87 @@ type CanvasNode = { type?: string; data: Record<string, unknown> }
 function downloadFormat(formatId: string, nodes: CanvasNode[], filename: string) {
   const brief = nodes.find((n) => n.type === 'brief')
   const title = (brief?.data?.title as string) || 'Script'
+  // All content nodes with any text, preserving canvas order
   const contentNodes = nodes.filter(
     (n) => n.type === 'content' && ((n.data as { content?: string }).content ?? '').trim(),
   )
+
+  type D = { label?: string; index?: number; content?: string; kind?: string }
+  const heading = (d: D) =>
+    d.index != null ? `${d.label} ${d.index}` : (d.label ?? 'Section')
 
   let text = ''
 
   if (formatId === 'beatsheet') {
     text = `# Beat Sheet — ${title}\n\n`
     for (const n of contentNodes) {
-      const d = n.data as { label?: string; index?: number; content?: string }
-      const heading = d.index != null ? `${d.label} ${d.index}` : d.label
-      const first = (d.content ?? '').split('\n')[0].slice(0, 100)
-      text += `- **${heading}**: ${first}\n`
+      const d = n.data as D
+      const first = (d.content ?? '').split('\n')[0].trim().slice(0, 120)
+      text += `- **${heading(d)}**: ${first}\n`
     }
+    if (!text.trim().endsWith('\n\n')) text += '\n'
+
   } else if (formatId === 'shotlist') {
-    text = `# Shot List — ${title}\n\n| # | Scene | Shot description |\n|---|-------|------------------|\n`
-    let i = 1
-    for (const n of contentNodes) {
-      const d = n.data as { label?: string; index?: number; content?: string; kind?: string }
-      if (d.kind === 'visual' || d.kind === 'scene') {
-        const first = (d.content ?? '').split('\n')[0].slice(0, 80)
-        text += `| ${i++} | ${d.label}${d.index != null ? ` ${d.index}` : ''} | ${first} |\n`
-      }
-    }
+    // Include visual/scene kinds first, then everything else as fallback
+    const visual = contentNodes.filter((n) => {
+      const k = (n.data as D).kind ?? ''
+      return k === 'visual' || k === 'scene' || k.includes('technical') || k.includes('screenplay')
+    })
+    const rows = visual.length > 0 ? visual : contentNodes
+    text = `# Shot List — ${title}\n\n| # | Stage | Description |\n|---|-------|-------------|\n`
+    rows.forEach((n, i) => {
+      const d = n.data as D
+      const first = (d.content ?? '').split('\n')[0].trim().slice(0, 100)
+      text += `| ${i + 1} | ${heading(d)} | ${first} |\n`
+    })
+
   } else if (formatId === 'voiceover') {
+    // Dialogue/hook/CTA first, fall back to all content
+    const spoken = contentNodes.filter((n) => {
+      const k = (n.data as D).kind ?? ''
+      return k === 'dialogue' || k === 'hook' || k === 'cta' || k === 'auteur-stageplay'
+    })
+    const rows = spoken.length > 0 ? spoken : contentNodes
     text = `# Voiceover Script — ${title}\n\n`
-    for (const n of contentNodes) {
-      const d = n.data as { label?: string; index?: number; content?: string; kind?: string }
-      if (d.kind === 'dialogue' || d.kind === 'hook' || d.kind === 'cta') {
-        text += `### ${d.label}${d.index != null ? ` ${d.index}` : ''}\n\n${d.content?.trim()}\n\n`
-      }
+    for (const n of rows) {
+      const d = n.data as D
+      text += `### ${heading(d)}\n\n${(d.content ?? '').trim()}\n\n`
     }
+
   } else if (formatId === 'social') {
-    // Social: first hook + CTA only, condensed
-    const hook = contentNodes.find((n) => (n.data as { kind?: string }).kind === 'hook')
-    const cta = contentNodes.find((n) => (n.data as { kind?: string }).kind === 'cta')
+    const hook = contentNodes.find((n) => (n.data as D).kind === 'hook')
+    const cta = contentNodes.find((n) => (n.data as D).kind === 'cta')
+    // Auteur fallback: stageplay as hook equivalent
+    const opener = hook ?? contentNodes.find((n) => (n.data as D).kind === 'auteur-stageplay') ?? contentNodes[0]
+    const closer = cta ?? contentNodes[contentNodes.length - 1]
+
     text = `# Social Cutdown — ${title}\n\n`
-    if (hook) text += `**HOOK**\n${(hook.data as { content?: string }).content?.trim()}\n\n`
-    if (cta) text += `**CTA**\n${(cta.data as { content?: string }).content?.trim()}\n\n`
-    text += `*(Condense scenes to 15–30s for social delivery)*\n`
+    if (opener) {
+      const d = opener.data as D
+      // Take first 3 lines only for social brevity
+      const condensed = (d.content ?? '').split('\n').slice(0, 3).join('\n').trim()
+      text += `**HOOK**\n${condensed}\n\n`
+    }
+    if (closer && closer !== opener) {
+      const d = closer.data as D
+      text += `**CLOSE**\n${(d.content ?? '').split('\n').slice(0, 2).join('\n').trim()}\n\n`
+    }
+    text += `---\n*Condense to 15–30s for delivery. Full script in screenplay format.*\n`
+
   } else {
-    // Default: full screenplay format
+    // screenplay (default) — full script
     text = `# ${title}\n\n`
+    if (brief) {
+      const b = brief.data
+      if (b.objective) text += `> ${b.objective}\n\n`
+    }
     for (const n of contentNodes) {
-      const d = n.data as { label?: string; index?: number; content?: string }
-      const heading = d.index != null ? `## ${d.label} ${d.index}` : `## ${d.label}`
-      text += `${heading}\n\n${d.content?.trim()}\n\n`
+      const d = n.data as D
+      text += `## ${heading(d)}\n\n${(d.content ?? '').trim()}\n\n`
     }
   }
 
-  const blob = new Blob([text], { type: 'text/markdown' })
+  const blob = new Blob([text.trim() + '\n'], { type: 'text/markdown' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

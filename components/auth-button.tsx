@@ -3,7 +3,7 @@
 import { useAuth } from '@/components/auth-context'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
-import { ArrowRight, Copy, Check, Loader2, RefreshCw } from 'lucide-react'
+import { ArrowRight, Copy, Check, Loader2, RefreshCw, FolderKanban } from 'lucide-react'
 import { openLoginWithChatGPTConsentPopup } from '@opencoredev/loginwithchatgpt-react'
 import { OpenAiMark } from '@/components/openai-mark'
 import { cn } from '@/lib/utils'
@@ -12,7 +12,7 @@ export function AuthButton() {
   const router = useRouter()
   const auth = useAuth()
 
-  // Redirect after login — must be in an effect, not during render
+  // Auto-redirect after login completes
   useEffect(() => {
     if (auth.status === 'authenticated') {
       router.replace('/projects')
@@ -28,8 +28,26 @@ export function AuthButton() {
     )
   }
 
-  // Authenticated — show nothing while redirect fires
-  if (auth.status === 'authenticated') return null
+  // Already authenticated — auto-redirect is in flight, but show a manual button
+  // in case the router is slow (e.g. middleware re-check delay)
+  if (auth.status === 'authenticated') {
+    return (
+      <div className="flex flex-col items-center gap-2">
+        <button
+          type="button"
+          onClick={() => router.replace('/projects')}
+          className="group flex items-center gap-2.5 rounded-xl bg-primary px-4 py-2.5 text-[13px] font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+        >
+          <FolderKanban className="size-4" />
+          Open app
+          <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+        </button>
+        <p className="text-[11px] text-muted-foreground/60">
+          You&apos;re signed in
+        </p>
+      </div>
+    )
+  }
 
   // Device-code pending — show the code
   if (auth.status === 'pending') {
@@ -85,9 +103,7 @@ export function AuthButton() {
           'bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-60 disabled:pointer-events-none',
         )}
       >
-        {auth.isConnecting
-          ? <Loader2 className="size-4 animate-spin" />
-          : <OpenAiMark className="size-4" />}
+        {auth.isConnecting ? <Loader2 className="size-4 animate-spin" /> : <OpenAiMark className="size-4" />}
         {auth.isConnecting ? 'Connecting…' : 'Continue with ChatGPT'}
         {!auth.isConnecting && (
           <ArrowRight className="size-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />

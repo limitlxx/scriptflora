@@ -14,11 +14,11 @@ export const metadata: Metadata = {
     'Node-based AI scriptwriting. Structured scripts, continuity guaranteed. Bring your own ChatGPT subscription.',
   icons: {
     icon: [
-      { url: '/icon-light-32x32.png', media: '(prefers-color-scheme: light)' },
-      { url: '/icon-dark-32x32.png', media: '(prefers-color-scheme: dark)' },
+      { url: '/icon-dark-32x32.png', sizes: '32x32', type: 'image/png' },
       { url: '/icon.svg', type: 'image/svg+xml' },
     ],
     apple: '/apple-icon.png',
+    shortcut: '/icon-dark-32x32.png',
   },
 }
 
