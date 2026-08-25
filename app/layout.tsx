@@ -1,37 +1,22 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
+import { Suspense } from 'react'
+import { AuthProvider } from '@/components/auth-context'
+import { PageProgress } from '@/components/page-progress'
 
-const geistSans = Geist({
-  subsets: ['latin'],
-  variable: '--font-geist-sans',
-})
-
-const geistMono = Geist_Mono({
-  subsets: ['latin'],
-  variable: '--font-geist-mono',
-})
+// No Google Fonts — system font stack loads instantly, zero network round-trip.
+// ponytail: Geist is beautiful but adds ~100ms to TTFB on first load.
 
 export const metadata: Metadata = {
-  title: 'ScriptFlora — AI Scriptwriting Assistant',
+  title: 'ScriptFlow — AI Scriptwriting Assistant',
   description:
     'Node-based AI scriptwriting. Structured scripts, continuity guaranteed. Bring your own ChatGPT subscription.',
-  generator: 'v0.app',
   icons: {
     icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
+      { url: '/icon-light-32x32.png', media: '(prefers-color-scheme: light)' },
+      { url: '/icon-dark-32x32.png', media: '(prefers-color-scheme: dark)' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
     ],
     apple: '/apple-icon.png',
   },
@@ -42,18 +27,16 @@ export const viewport: Viewport = {
   themeColor: '#0A0A0B',
 }
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} bg-background`}
-    >
+    <html lang="en" className="bg-background">
       <body className="antialiased">
-        {children}
+        <AuthProvider>
+          <Suspense fallback={null}>
+            <PageProgress />
+          </Suspense>
+          {children}
+        </AuthProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

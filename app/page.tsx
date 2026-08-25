@@ -1,5 +1,5 @@
+import { Suspense } from 'react'
 import Link from 'next/link'
-import { ArrowRight } from 'lucide-react'
 import { Logo } from '@/components/logo'
 import { AuthButton } from '@/components/auth-button'
 
@@ -27,21 +27,24 @@ export default function LandingPage() {
         <Logo />
         <nav className="flex items-center gap-5">
           <Link
-            href="/canvas"
+            href="/projects"
             className="text-muted-foreground hover:text-foreground text-[12.5px] transition-colors duration-150"
           >
-            Canvas
+            Dashboard
           </Link>
-          <span className="text-muted-foreground/70 hidden text-[12.5px] sm:inline">
+          <Link
+            href="/docs"
+            className="text-muted-foreground hover:text-foreground text-[12.5px] transition-colors duration-150"
+          >
             Docs
-          </span>
+          </Link>
         </nav>
       </header>
 
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 pb-24">
         <span className="text-muted-foreground mb-7 flex items-center gap-2 rounded-full border border-white/[0.08] px-3 py-1 text-[11px] tracking-[0.01em]">
           <span className="bg-primary size-1.5 rounded-full" />
-          Now in private beta
+          Built for 10Alytics Business AI BuildFest
         </span>
 
         <h1 className="max-w-[19ch] text-balance text-center text-[clamp(2.25rem,6.5vw,4rem)] leading-[1.04] font-medium tracking-[-0.035em]">
@@ -55,8 +58,14 @@ export default function LandingPage() {
         </p>
 
         <div className="mt-10 flex flex-col items-center gap-4">
-          {/* AuthButton handles LWC when secret is set, falls back to direct link */}
-          <AuthButton />
+          <Suspense fallback={
+            <div className="flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-[13px] text-muted-foreground">
+              <div className="size-4 animate-spin rounded-full border-2 border-white/10 border-t-primary" />
+              Loading…
+            </div>
+          }>
+            <AuthButton />
+          </Suspense>
           <p className="text-muted-foreground/60 text-[11px]">
             No new subscription. Your key, your models.
           </p>

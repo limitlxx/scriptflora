@@ -49,7 +49,7 @@ export function FloatingSidebar({ onDropNode }: { onDropNode: (request: AddNodeR
 
   const startDrag = (event: DragEvent<HTMLButtonElement>, request: AddNodeRequest) => {
     event.dataTransfer.effectAllowed = 'copy'
-    event.dataTransfer.setData('application/ScriptFlora-node', JSON.stringify(request))
+    event.dataTransfer.setData('application/scriptflow-node', JSON.stringify(request))
   }
 
   const handleImport = (event: ChangeEvent<HTMLInputElement>) => {

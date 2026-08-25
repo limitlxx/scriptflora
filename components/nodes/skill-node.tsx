@@ -32,8 +32,8 @@ const SKILLS: {
     id: 'auteur',
     name: 'Storyline Auteur Script',
     tagline:
-      'Premise, tension, turn, resonance. A director-led arc that trades predictability for voice.',
-    stages: '4 stages',
+      'Stageplay → Screenplay → Technical Screenplay → Production Summary → Auteur Script. Built for generative video continuity.',
+    stages: '5 stages',
   },
 ]
 

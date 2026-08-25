@@ -147,8 +147,12 @@ export type ScriptFloraNode =
   | ExportNode
 
 export type ScriptFloraNodeType = NonNullable<ScriptFloraNode['type']>
-
 export type ScriptFloraEdge = Edge<{ flowing?: boolean }>
+
+// Aliases — canvas components use ScriptFlow* naming
+export type ScriptFlowNode = ScriptFloraNode
+export type ScriptFlowNodeType = ScriptFloraNodeType
+export type ScriptFlowEdge = ScriptFloraEdge
 
 /* ------------------------------------------------------------------ */
 /* Generation contract                                                 */

@@ -30,31 +30,20 @@ function ControlButton({
   )
 }
 
+// ─── 1. Controls at bottom-center ───────────────────────────────────────────
 export function CanvasControls() {
   const { zoomIn, zoomOut, fitView } = useReactFlow()
   const zoom = useStore((s) => s.transform[2])
 
   return (
-    <div className="pointer-events-auto absolute bottom-4 left-4 z-20 flex items-center gap-1 rounded-xl border border-white/[0.08] bg-[oklch(0.201_0.005_285/0.85)] p-1 shadow-float backdrop-blur-xl">
-      <ControlButton
-        icon={Minus}
-        label="Zoom out"
-        onClick={() => zoomOut({ duration: 200 })}
-      />
+    <div className="pointer-events-auto absolute bottom-4 left-1/2 z-20 -translate-x-1/2 flex items-center gap-1 rounded-xl border border-white/[0.08] bg-[oklch(0.201_0.005_285/0.85)] p-1 shadow-float backdrop-blur-xl">
+      <ControlButton icon={Minus} label="Zoom out" onClick={() => zoomOut({ duration: 200 })} />
       <span className="text-muted-foreground w-9 text-center font-mono text-[10.5px] tabular-nums select-none">
         {Math.round(zoom * 100)}%
       </span>
-      <ControlButton
-        icon={Plus}
-        label="Zoom in"
-        onClick={() => zoomIn({ duration: 200 })}
-      />
+      <ControlButton icon={Plus} label="Zoom in" onClick={() => zoomIn({ duration: 200 })} />
       <span className="mx-0.5 h-4 w-px bg-white/[0.09]" />
-      <ControlButton
-        icon={Maximize2}
-        label="Fit view"
-        onClick={() => fitView({ duration: 350, padding: 0.18 })}
-      />
+      <ControlButton icon={Maximize2} label="Fit view" onClick={() => fitView({ duration: 350, padding: 0.18 })} />
     </div>
   )
 }

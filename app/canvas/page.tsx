@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
 import { isAuthenticated } from '@/lib/auth'
-import { ScriptFloraCanvas } from '@/components/canvas/script-flow-canvas'
+import { ScriptFlowCanvas } from '@/components/canvas/canvas-client'
 
 export const metadata: Metadata = {
-  title: 'Canvas — ScriptFlora',
+  title: 'Canvas — ScriptFlow',
   description: 'Node-based AI scriptwriting canvas.',
 }
 
@@ -18,15 +18,11 @@ export default async function CanvasPage({
   }
 
   const { project: projectId } = await searchParams
-
-  // No project ID — send back to projects to pick or create one
-  if (!projectId) {
-    redirect('/projects')
-  }
+  if (!projectId) redirect('/projects')
 
   return (
     <main className="bg-canvas h-dvh w-full overflow-hidden">
-      <ScriptFloraCanvas projectId={projectId} />
+      <ScriptFlowCanvas projectId={projectId} />
     </main>
   )
 }

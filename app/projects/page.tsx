@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
-import { ProjectsDashboard } from '@/components/projects/projects-dashboard'
+import { ProjectsDashboard } from '@/components/projects/projects-dashboard-client'
 
 export const metadata: Metadata = {
-  title: 'Projects — ScriptFlora',
-  description: 'Manage your ScriptFlora projects and previous results.',
+  title: 'Projects — ScriptFlow',
+  description: 'Manage your ScriptFlow projects.',
 }
 
 export default function ProjectsPage() {

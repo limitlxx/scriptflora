@@ -145,7 +145,7 @@ export function ContentNode({ id, data, selected }: NodeProps<ContentNodeType>) 
         <div className="px-4 py-3">
           <button
             type="button"
-            className="nodrag mb-3 flex w-full items-center justify-between text-left text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground"
+            className="nodrag mb-2 flex w-full items-center justify-between text-left text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground transition-colors hover:text-foreground"
             onClick={() => setPromptOpen((open) => !open)}
             aria-expanded={promptOpen}
           >
@@ -153,14 +153,32 @@ export function ContentNode({ id, data, selected }: NodeProps<ContentNodeType>) 
             {promptOpen ? <ChevronUp className="size-3" /> : <ChevronDown className="size-3" />}
           </button>
           {promptOpen && (
-            <textarea
-              className="nodrag mb-3 min-h-16 w-full resize-none rounded-lg border border-white/[0.07] bg-black/20 p-2.5 text-[11px] leading-relaxed text-foreground/85 outline-none placeholder:text-muted-foreground/40 focus:border-primary/35"
-              value={data.prompt ?? ''}
-              disabled={disabled || generating}
-              onChange={(event) => update(id, { prompt: event.target.value })}
-              placeholder={`Guide this ${meta.label.toLowerCase()}...`}
-              aria-label={`${meta.label} generation prompt`}
-            />
+            <div className="mb-3">
+              <textarea
+                className="nodrag min-h-16 w-full resize-none rounded-lg border border-white/[0.07] bg-black/20 p-2.5 text-[11px] leading-relaxed text-foreground/85 outline-none placeholder:text-muted-foreground/40 focus:border-primary/35"
+                value={data.prompt ?? ''}
+                disabled={disabled || generating}
+                onChange={(event) => update(id, { prompt: event.target.value })}
+                placeholder={`Guide this ${meta.label.toLowerCase()}...`}
+                aria-label={`${meta.label} generation prompt`}
+              />
+              {(data.prompt ?? '').trim() && !disabled && (
+                <button
+                  type="button"
+                  onClick={() => act(id, 'regenerate')}
+                  disabled={generating}
+                  className={cn(
+                    'nodrag mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-1.5',
+                    'text-[11px] font-medium transition-all duration-150',
+                    'bg-primary/15 text-primary hover:bg-primary/25',
+                    'disabled:pointer-events-none disabled:opacity-50',
+                  )}
+                >
+                  <WandSparkles className="size-3" />
+                  {generating ? 'Running…' : 'Run prompt'}
+                </button>
+              )}
+            </div>
           )}
           {generating && (
             <div className="mb-3" aria-live="polite">

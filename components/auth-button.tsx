@@ -1,40 +1,103 @@
 'use client'
 
-/**
- * Renders the LWC button when LWC is configured, otherwise a plain canvas link.
- * ponytail: single component so the landing page stays a server component.
- */
-import { ArrowRight } from 'lucide-react'
-import Link from 'next/link'
+import { useAuth } from '@/components/auth-context'
+import { useRouter } from 'next/navigation'
+import { useEffect } from 'react'
+import { ArrowRight, Copy, Check, Loader2, RefreshCw } from 'lucide-react'
+import { openLoginWithChatGPTConsentPopup } from '@opencoredev/loginwithchatgpt-react'
 import { OpenAiMark } from '@/components/openai-mark'
-
-// LoginWithChatGPT is a client component from the LWC React package.
-// We lazy-import so the build doesn't break when the package is present
-// but LWC_SECRET is not yet configured.
-let LoginWithChatGPT: React.ComponentType<{ callbackUrl?: string }> | null = null
-try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  LoginWithChatGPT = require('@opencoredev/loginwithchatgpt-react').LoginWithChatGPT
-} catch {
-  // package not installed — use fallback
-}
+import { cn } from '@/lib/utils'
 
 export function AuthButton() {
-  if (LoginWithChatGPT) {
+  const router = useRouter()
+  const auth = useAuth()
+
+  // Redirect after login — must be in an effect, not during render
+  useEffect(() => {
+    if (auth.status === 'authenticated') {
+      router.replace('/projects')
+    }
+  }, [auth.status, router])
+
+  if (auth.status === 'loading') {
     return (
-      <LoginWithChatGPT callbackUrl="/projects" />
+      <div className="flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-[13px] text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" />
+        Checking session…
+      </div>
     )
   }
 
-  // Fallback: direct link (dev mode / no LWC secret)
+  // Authenticated — show nothing while redirect fires
+  if (auth.status === 'authenticated') return null
+
+  // Device-code pending — show the code
+  if (auth.status === 'pending') {
+    return (
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-white/[0.08] bg-black/20 px-5 py-4 text-center">
+        <p className="text-[12px] text-muted-foreground">
+          Enter this code in the window that opened
+        </p>
+        <div className="flex items-center gap-3">
+          <span className="font-mono text-xl font-semibold tracking-[0.18em] text-foreground">
+            {auth.userCode}
+          </span>
+          <button
+            type="button"
+            onClick={() => void auth.copyCode()}
+            aria-label="Copy code"
+            className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/[0.08] hover:text-foreground"
+          >
+            {auth.copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={auth.reopen}
+          className="flex items-center gap-1.5 text-[11px] text-primary hover:underline"
+        >
+          <RefreshCw className="size-3" />
+          Reopen sign-in window
+        </button>
+      </div>
+    )
+  }
+
+  // Unauthenticated / error
+  const handleLogin = () => {
+    const popup = openLoginWithChatGPTConsentPopup({
+      appName: 'ScriptFlow',
+      login: auth.login,
+    })
+    if (!popup) void auth.login()
+  }
+
   return (
-    <Link
-      href="/projects"
-      className="group bg-primary text-primary-foreground focus-visible:ring-ring flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-[13px] font-medium transition-all duration-200 hover:opacity-90 focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-[oklch(0.145_0.004_285)] focus-visible:outline-none"
-    >
-      <OpenAiMark className="size-4" />
-      Continue with ChatGPT
-      <ArrowRight className="size-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
-    </Link>
+    <div className="flex flex-col items-center gap-3">
+      <button
+        type="button"
+        onClick={handleLogin}
+        disabled={auth.isConnecting}
+        className={cn(
+          'group focus-visible:ring-ring flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-[13px] font-medium',
+          'transition-all duration-200 focus-visible:ring-2 focus-visible:ring-offset-2',
+          'focus-visible:ring-offset-[oklch(0.145_0.004_285)] focus-visible:outline-none',
+          'bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-60 disabled:pointer-events-none',
+        )}
+      >
+        {auth.isConnecting
+          ? <Loader2 className="size-4 animate-spin" />
+          : <OpenAiMark className="size-4" />}
+        {auth.isConnecting ? 'Connecting…' : 'Continue with ChatGPT'}
+        {!auth.isConnecting && (
+          <ArrowRight className="size-3.5 transition-transform duration-200 group-hover:translate-x-0.5" />
+        )}
+      </button>
+      {auth.status === 'error' && (
+        <p role="alert" className="text-[11px] text-destructive">
+          Something went wrong. Try again.
+        </p>
+      )}
+    </div>
   )
 }
