@@ -4,6 +4,7 @@ import './globals.css'
 import { Suspense } from 'react'
 import { AuthProvider } from '@/components/auth-context'
 import { PageProgress } from '@/components/page-progress'
+import { FeedbackModal } from '@/components/feedback-modal'
 
 // No Google Fonts — system font stack loads instantly, zero network round-trip.
 // ponytail: Geist is beautiful but adds ~100ms to TTFB on first load.
@@ -39,6 +40,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <PageProgress />
           </Suspense>
           {children}
+          <FeedbackModal />
         </AuthProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

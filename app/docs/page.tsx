@@ -23,8 +23,8 @@ import {
 } from 'lucide-react'
 
 export const metadata: Metadata = {
-  title: 'Docs — ScriptFlow',
-  description: 'Learn how to use ScriptFlow nodes and build structured scripts.',
+  title: 'Docs — ScriptFlora',
+  description: 'Learn how to use ScriptFlora nodes and build structured scripts.',
 }
 
 function Section({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
@@ -108,7 +108,7 @@ export default function DocsPage() {
             className="flex items-center gap-1.5 text-[12px] text-muted-foreground transition-colors hover:text-foreground"
           >
             <ArrowLeft className="size-3.5" />
-            ScriptFlow
+            ScriptFlora
           </Link>
           <span className="text-white/20">/</span>
           <span className="flex items-center gap-1.5 text-[12px] text-foreground/80">
@@ -154,10 +154,10 @@ export default function DocsPage() {
               Documentation
             </p>
             <h1 className="text-3xl font-medium tracking-tight md:text-4xl">
-              ScriptFlow guide
+              ScriptFlora guide
             </h1>
             <p className="mt-4 max-w-prose text-[14px] leading-7 text-muted-foreground">
-              ScriptFlow is a node-based AI scriptwriting canvas. You connect a creative brief to a
+              ScriptFlora is a node-based AI scriptwriting canvas. You connect a creative brief to a
               writing skill, click Generate, and receive a fully structured script — one editable node
               per stage. Every section can be locked, regenerated independently, approved, or
               duplicated. Nothing is overwritten without your permission.
@@ -168,7 +168,7 @@ export default function DocsPage() {
           <Section id="quickstart" title="Quick start">
             <div className="space-y-5">
               <Step n={1} title="Sign in with ChatGPT">
-                Click <strong>Continue with ChatGPT</strong> on the landing page. ScriptFlow uses
+                Click <strong>Continue with ChatGPT</strong> on the landing page. ScriptFlora uses
                 your own ChatGPT subscription — no separate API key needed. Tokens are never
                 exposed to the browser.
               </Step>
@@ -188,7 +188,7 @@ export default function DocsPage() {
                 node's right handle to the Skill node's left handle to connect them.
               </Step>
               <Step n={5} title="Click Generate">
-                Hit the <strong>Generate</strong> button in the top bar. ScriptFlow reads your brief
+                Hit the <strong>Generate</strong> button in the top bar. ScriptFlora reads your brief
                 and skill, calls the model, and fans out a full set of content nodes — one per stage.
               </Step>
               <Step n={6} title="Review, edit, lock, and export">
