@@ -20,7 +20,7 @@ export function Logo({
       />
       {showWordmark && (
         <span className="text-foreground text-[13px] font-medium tracking-[-0.02em]">
-          ScriptFlow
+          ScriptFlora
         </span>
       )}
     </span>
