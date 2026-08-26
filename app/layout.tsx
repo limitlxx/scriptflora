@@ -9,16 +9,19 @@ import { PageProgress } from '@/components/page-progress'
 // ponytail: Geist is beautiful but adds ~100ms to TTFB on first load.
 
 export const metadata: Metadata = {
-  title: 'ScriptFlora — AI Scriptwriting Assistant',
+  title: 'ScriptFlow — AI Scriptwriting Assistant',
   description:
     'Node-based AI scriptwriting. Structured scripts, continuity guaranteed. Bring your own ChatGPT subscription.',
   icons: {
     icon: [
-      { url: '/icon-dark-32x32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/favicon-16x16.png', sizes: '16x16', type: 'image/png' },
+      { url: '/favicon-32x32.png', sizes: '32x32', type: 'image/png' },
       { url: '/icon.svg', type: 'image/svg+xml' },
     ],
-    apple: '/apple-icon.png',
-    shortcut: '/icon-dark-32x32.png',
+    apple: '/apple-touch-icon.png',
+    shortcut: '/favicon.ico',
+    other: [{ rel: 'manifest', url: '/site.webmanifest' }],
   },
 }
 

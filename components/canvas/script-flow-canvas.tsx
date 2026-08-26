@@ -143,7 +143,9 @@ function reconcile(plan: GenerationPlan, skillNode: ScriptFlowNode, allNodes: Sc
   const nodes = [...allNodes, ...newNodes]
   const allContentIds = new Set([...existing.map((n) => n.id), ...newNodes.map((n) => n.id)])
   const keptEdges = allEdges.filter((e) => !(e.source === skillNode.id && allContentIds.has(e.target)))
-  const newEdges: ScriptFlowEdge[] = [...existing.map((n) => n.id), ...newNodes.map((n) => n.id)].map((targetId) => ({
+
+  // Skill → content fan-out edges
+  const skillToContent: ScriptFlowEdge[] = [...existing.map((n) => n.id), ...newNodes.map((n) => n.id)].map((targetId) => ({
     id: `${skillNode.id}->${targetId}`,
     source: skillNode.id,
     target: targetId,
@@ -152,7 +154,43 @@ function reconcile(plan: GenerationPlan, skillNode: ScriptFlowNode, allNodes: Sc
     data: { flowing: false },
   }))
 
-  return { nodes, edges: [...keptEdges, ...newEdges] }
+  // ── Auto-connect downstream nodes ────────────────────────────────────────
+  // Continuity and output nodes need ALL content nodes as inputs so they can
+  // read every stage. Export connects from continuity/output (or last content).
+  const allContentNodeIds = [...existing.map((n) => n.id), ...newNodes.map((n) => n.id)]
+  const autoEdges: ScriptFlowEdge[] = []
+
+  const edgeExists = (source: string, target: string) =>
+    keptEdges.some((e) => e.source === source && e.target === target) ||
+    skillToContent.some((e) => e.source === source && e.target === target) ||
+    autoEdges.some((e) => e.source === source && e.target === target)
+
+  const addEdgeIfMissing = (source: string, target: string) => {
+    if (!edgeExists(source, target)) {
+      autoEdges.push({ id: `${source}->${target}`, source, target, type: 'smoothstep', animated: false, data: { flowing: false } })
+    }
+  }
+
+  const continuityNodes = allNodes.filter((n) => n.type === 'continuity')
+  const outputNodes = allNodes.filter((n) => n.type === 'output')
+  const exportNodes = allNodes.filter((n) => n.type === 'export')
+
+  for (const contentId of allContentNodeIds) {
+    for (const cn of continuityNodes) addEdgeIfMissing(contentId, cn.id)
+    for (const on of outputNodes) addEdgeIfMissing(contentId, on.id)
+  }
+
+  // Export receives from continuity + output (or last content if neither exist)
+  for (const en of exportNodes) {
+    const upstreamNodes = [...continuityNodes, ...outputNodes]
+    if (upstreamNodes.length > 0) {
+      for (const up of upstreamNodes) addEdgeIfMissing(up.id, en.id)
+    } else if (allContentNodeIds.length > 0) {
+      addEdgeIfMissing(allContentNodeIds[allContentNodeIds.length - 1], en.id)
+    }
+  }
+
+  return { nodes, edges: [...keptEdges, ...skillToContent, ...autoEdges] }
 }
 
 function Flow({ projectId }: { projectId: string }) {
@@ -392,7 +430,7 @@ function Flow({ projectId }: { projectId: string }) {
   }, [update, setNodes, setEdges, regenerateSingleNode])
 
   // Ref so actExtended can call handleGenerate without a circular dep
-  const handleGenerateRef = useRef<() => Promise<void>>()
+  const handleGenerateRef = useRef<(() => Promise<void>) | undefined>(undefined)
 
   // Continuity/output nodes get a simulated regenerate; skill nodes trigger full generation
   const actExtended = useCallback((id: string, action: NodeAction) => {
@@ -512,18 +550,66 @@ function Flow({ projectId }: { projectId: string }) {
     }
   }, [])
 
+  // Shared helper: wire a newly-added downstream node to all existing content nodes
+  const autoWireNode = useCallback((newNode: ScriptFlowNode, type: string) => {
+    setEdges((curEdges) => {
+      setNodes((curNodes) => {
+        const contentNodes = curNodes.filter((n) => n.type === 'content')
+        const continuityNodes = curNodes.filter((n) => n.type === 'continuity' && n.id !== newNode.id)
+        const outputNodes = curNodes.filter((n) => n.type === 'output' && n.id !== newNode.id)
+
+        const seen = new Set(curEdges.map((e) => e.id))
+        const extra: ScriptFlowEdge[] = []
+        const add = (src: string, tgt: string) => {
+          const id = `${src}->${tgt}`
+          if (!seen.has(id)) { seen.add(id); extra.push({ id, source: src, target: tgt, type: 'smoothstep', animated: false, data: { flowing: false } }) }
+        }
+
+        if (type === 'continuity' || type === 'output') {
+          for (const cn of contentNodes) add(cn.id, newNode.id)
+        }
+        if (type === 'export') {
+          const upstream = [...continuityNodes, ...outputNodes]
+          if (upstream.length > 0) {
+            for (const up of upstream) add(up.id, newNode.id)
+          } else if (contentNodes.length > 0) {
+            add(contentNodes[contentNodes.length - 1].id, newNode.id)
+          }
+        }
+
+        if (extra.length > 0) {
+          // Schedule the edge update outside this setNodes callback to avoid nesting
+          setTimeout(() => setEdges((e) => {
+            const ids = new Set(e.map((x) => x.id))
+            return [...e, ...extra.filter((x) => !ids.has(x.id))]
+          }), 0)
+        }
+        return curNodes
+      })
+      return curEdges
+    })
+  }, [setNodes, setEdges])
+
   const handleAddNode = useCallback((request: AddNodeRequest) => {
     if (!menu) return
-    setNodes((c) => [...c, buildNode(request, screenToFlowPosition({ x: menu.x, y: menu.y }))])
+    const newNode = buildNode(request, screenToFlowPosition({ x: menu.x, y: menu.y }))
+    setNodes((c) => [...c, newNode])
+    if (request.type === 'continuity' || request.type === 'output' || request.type === 'export') {
+      autoWireNode(newNode, request.type)
+    }
     setMenu(null)
-  }, [menu, screenToFlowPosition, setNodes])
+  }, [menu, screenToFlowPosition, setNodes, autoWireNode])
 
   const addBrief = useCallback(() => setNodes((c) => [...c, buildNode({ type: 'brief' }, { x: 0, y: 0 })]), [setNodes])
 
   const handleDropNode = useCallback((request: AddNodeRequest, event: React.DragEvent | React.MouseEvent) => {
     const point = 'clientX' in event ? { x: event.clientX, y: event.clientY } : { x: 180, y: 180 }
-    setNodes((c) => [...c, buildNode(request, screenToFlowPosition(point))])
-  }, [screenToFlowPosition, setNodes])
+    const newNode = buildNode(request, screenToFlowPosition(point))
+    setNodes((c) => [...c, newNode])
+    if (request.type === 'continuity' || request.type === 'output' || request.type === 'export') {
+      autoWireNode(newNode, request.type)
+    }
+  }, [screenToFlowPosition, setNodes, autoWireNode])
 
   const handleCanvasDrop = useCallback((event: React.DragEvent) => {
     event.preventDefault()

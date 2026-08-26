@@ -12,7 +12,7 @@ export function Logo({
     <span className={cn('flex items-center gap-2', className)}>
       <Image
         src="/logo-transparent.png"
-        alt="ScriptFlow logo"
+        alt="ScriptFlora logo"
         width={28}
         height={28}
         className="shrink-0"
