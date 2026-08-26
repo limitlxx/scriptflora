@@ -9,7 +9,7 @@ import { PageProgress } from '@/components/page-progress'
 // ponytail: Geist is beautiful but adds ~100ms to TTFB on first load.
 
 export const metadata: Metadata = {
-  title: 'ScriptFlow — AI Scriptwriting Assistant',
+  title: 'ScriptFlora — AI Scriptwriting Assistant',
   description:
     'Node-based AI scriptwriting. Structured scripts, continuity guaranteed. Bring your own ChatGPT subscription.',
   icons: {
