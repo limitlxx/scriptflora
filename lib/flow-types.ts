@@ -12,7 +12,7 @@ export type NodeStatus =
   | 'approved'
   | 'error'
 
-export type SkillId = 'standard' | 'auteur'
+export type SkillId = 'standard' | 'auteur' | (string & {})
 
 /** Standard pipeline stages */
 export type StandardKind = 'hook' | 'scene' | 'dialogue' | 'visual' | 'cta'

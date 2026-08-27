@@ -90,6 +90,7 @@ const NAV = [
   { id: 'nodes', label: 'All nodes' },
   { id: 'actions', label: 'Node actions' },
   { id: 'skills', label: 'Skills' },
+  { id: 'custom-skills', label: 'Custom skills' },
   { id: 'generation', label: 'Generating' },
   { id: 'continuity', label: 'Continuity checker' },
   { id: 'output', label: 'Multi-format output' },
@@ -388,6 +389,137 @@ export default function DocsPage() {
                     </li>
                   ))}
                 </ol>
+              </div>
+            </div>
+          </Section>
+
+          {/* ── Custom skills ── */}
+          <Section id="custom-skills" title="Building custom skills">
+            <div className="space-y-5 text-[13px] leading-7 text-muted-foreground">
+              <p>
+                A <strong className="text-foreground">skill</strong> is a plain Markdown file that
+                describes a pipeline methodology. ScriptFlow reads it as the system prompt context
+                when generating your script, so the quality of your skill file directly determines
+                the quality of the output.
+              </p>
+
+              {/* How to import */}
+              <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+                <p className="mb-2 text-[12.5px] font-medium text-foreground">How to import</p>
+                <ol className="ml-4 list-decimal space-y-1 text-[12.5px]">
+                  <li>Open the left sidebar on the canvas.</li>
+                  <li>Expand <strong className="text-foreground">Techniques</strong>.</li>
+                  <li>Click <strong className="text-foreground">Import skill</strong> and pick your <Pill>.md</Pill> or <Pill>.txt</Pill> file.</li>
+                  <li>The skill appears in the list — drag it to the canvas or click to drop a Skill node.</li>
+                  <li>Open the Skill node and select your imported skill from the dropdown.</li>
+                  <li>Hit <strong className="text-foreground">Generate</strong> — the AI uses your skill file as the methodology.</li>
+                </ol>
+                <p className="mt-2 text-[11.5px] text-muted-foreground/70">
+                  Imported skills persist in your browser — they survive page reloads. Remove them with the × button in the sidebar.
+                </p>
+              </div>
+
+              {/* File structure */}
+              <div>
+                <p className="mb-3 text-[12.5px] font-medium text-foreground">Skill file structure</p>
+                <p className="mb-3 text-[12.5px]">
+                  A skill file has four required sections. The <strong className="text-foreground">Node Mapping</strong> section
+                  is the most important — it tells the generator exactly which stages to produce and in what order.
+                </p>
+                <div className="rounded-xl border border-white/[0.08] bg-black/25 p-4 font-mono text-[11.5px] leading-relaxed text-foreground/80">
+                  <p className="text-primary/80"># Skill: Your Skill Name</p>
+                  <p className="mt-3 text-muted-foreground">## Description</p>
+                  <p>One paragraph explaining what this skill is for and who should use it.</p>
+                  <p className="mt-3 text-muted-foreground">## Pipeline Stages (in order)</p>
+                  <p>1. <strong>Stage Name</strong> — what this stage produces</p>
+                  <p>2. <strong>Stage Name</strong> — what this stage produces</p>
+                  <p>3. <strong>Stage Name</strong> — ...</p>
+                  <p className="mt-3 text-muted-foreground">## Generation Rules</p>
+                  <p>- Always respect the Brief (topic, objective, audience, tone, key facts)</p>
+                  <p>- Key facts must never be contradicted</p>
+                  <p>- [Add your specific rules here]</p>
+                  <p className="mt-3 text-muted-foreground">## Node Mapping (generated in order)</p>
+                  <p className="text-primary/70">- hook (×1)</p>
+                  <p className="text-primary/70">- scene (×N, repeatable)</p>
+                  <p className="text-primary/70">- dialogue (×N)</p>
+                  <p className="text-primary/70">- cta (×1)</p>
+                </div>
+              </div>
+
+              {/* Node kinds */}
+              <div>
+                <p className="mb-3 text-[12.5px] font-medium text-foreground">Available node kinds</p>
+                <p className="mb-3 text-[12.5px]">
+                  The node kind names in <strong className="text-foreground">Node Mapping</strong> must match these exact strings — they map directly to the canvas node types:
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {[
+                    ['hook', 'Opening — grabs attention in the first seconds'],
+                    ['scene', 'A content beat (repeatable with ×N)'],
+                    ['dialogue', 'Spoken content — voice-over or on-screen'],
+                    ['visual', 'Camera, light, motion directions'],
+                    ['cta', 'Call to action — the close'],
+                    ['auteur-stageplay', 'Dialogue-only stage (Auteur Stage I)'],
+                    ['auteur-screenplay', 'Format + atmosphere (Auteur Stage II)'],
+                    ['auteur-technical', 'Full physical blocking (Auteur Stage III)'],
+                    ['auteur-production-summary', 'Visual rule sheet (Auteur Stage IV)'],
+                    ['auteur-script', 'Macro-state chunks (Auteur Stage V)'],
+                  ].map(([kind, desc]) => (
+                    <div key={kind as string} className="flex gap-2 rounded-lg border border-white/[0.06] p-2.5">
+                      <code className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">{kind}</code>
+                      <span className="text-[11.5px] text-muted-foreground">{desc}</span>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-3 text-[12px] text-muted-foreground/70">
+                  Use <code className="rounded bg-white/[0.06] px-1 text-[10.5px]">×N</code> after a kind to mark it as repeatable (e.g. <code className="rounded bg-white/[0.06] px-1 text-[10.5px]">scene (×N)</code>). The number of repeats is inferred from the brief duration and the generation rules you define.
+                </p>
+              </div>
+
+              {/* Example */}
+              <div>
+                <p className="mb-3 text-[12.5px] font-medium text-foreground">Example: Podcast episode skill</p>
+                <div className="rounded-xl border border-white/[0.08] bg-black/25 p-4 font-mono text-[11px] leading-6 text-foreground/75 whitespace-pre-wrap">{`# Skill: Podcast Episode Script
+
+## Description
+A conversational script structure for interview-style or solo podcast episodes.
+Designed to feel natural when spoken, with clear segment transitions.
+
+## Pipeline Stages (in order)
+1. **Cold Open** – 30s teaser that hooks the listener
+2. **Introduction** – Host intro + episode framing
+3. **Segment** – Main content block (repeatable, 3–5 per episode)
+4. **Transition** – Brief bridge between segments
+5. **Call to Action** – Subscribe, review, or follow prompt
+
+## Generation Rules
+- Write in a conversational, spoken-word tone
+- Avoid dense paragraphs — use short punchy sentences
+- Include natural pause markers [...] where appropriate
+- Duration determines number of Segment repeats:
+  - 15 min → 2 segments
+  - 30 min → 4 segments
+  - 45 min+ → 6 segments
+- Key facts from the Brief must appear in the Introduction
+
+## Node Mapping (generated in order)
+- hook (×1)
+- scene (×1)
+- scene (×N, repeatable — use for Segments)
+- dialogue (×N, one per segment)
+- cta (×1)`}</div>
+              </div>
+
+              {/* Tips */}
+              <div className="rounded-xl border border-primary/15 bg-primary/5 p-4">
+                <p className="mb-2 text-[12.5px] font-medium text-primary">Tips for writing effective skills</p>
+                <ul className="space-y-1.5 text-[12px]">
+                  <li className="flex gap-2"><span className="mt-0.5 size-1.5 shrink-0 rounded-full bg-primary/60" /><span><strong className="text-foreground">Be specific in Generation Rules.</strong> Vague rules produce vague output. Include duration scaling, tone constraints, and format preferences.</span></li>
+                  <li className="flex gap-2"><span className="mt-0.5 size-1.5 shrink-0 rounded-full bg-primary/60" /><span><strong className="text-foreground">Name stages clearly.</strong> The stage name in Node Mapping becomes the node label in the canvas. Keep it short and descriptive.</span></li>
+                  <li className="flex gap-2"><span className="mt-0.5 size-1.5 shrink-0 rounded-full bg-primary/60" /><span><strong className="text-foreground">Test with a full Brief.</strong> A skill only shows its strengths when given a complete brief with audience, duration, tone, and key facts.</span></li>
+                  <li className="flex gap-2"><span className="mt-0.5 size-1.5 shrink-0 rounded-full bg-primary/60" /><span><strong className="text-foreground">Use the standard-script.md as a starting point.</strong> Download it from the sidebar, rename it, and modify the stages and rules.</span></li>
+                  <li className="flex gap-2"><span className="mt-0.5 size-1.5 shrink-0 rounded-full bg-primary/60" /><span><strong className="text-foreground">The Node Mapping section is mandatory.</strong> Without it, the generator won't know what stages to create.</span></li>
+                </ul>
               </div>
             </div>
           </Section>

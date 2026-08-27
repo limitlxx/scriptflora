@@ -220,7 +220,7 @@ export function NodeHeader({
   right,
 }: {
   icon?: React.ComponentType<{ className?: string }>
-  title: string
+  title: React.ReactNode
   subtitle?: string
   right?: ReactNode
 }) {
@@ -232,10 +232,10 @@ export function NodeHeader({
             <Icon className="text-muted-foreground size-3" />
           </span>
         )}
-        <div className="min-w-0">
-          <h3 className="text-foreground truncate text-[13px] leading-tight font-medium tracking-[-0.01em]">
+        <div className="min-w-0 flex-1">
+          <div className="text-foreground text-[13px] leading-tight font-medium tracking-[-0.01em]">
             {title}
-          </h3>
+          </div>
           {subtitle && (
             <p className="text-muted-foreground mt-0.5 truncate text-[10.5px] leading-tight">
               {subtitle}

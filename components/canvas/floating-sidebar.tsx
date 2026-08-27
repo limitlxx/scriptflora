@@ -23,9 +23,10 @@ import {
   Zap,
 } from 'lucide-react'
 import Link from 'next/link'
-import { useRef, useState, type DragEvent, type ChangeEvent } from 'react'
+import { useRef, useState, useEffect, type DragEvent, type ChangeEvent } from 'react'
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/components/auth-context'
+import { loadImportedSkills, saveImportedSkill, deleteImportedSkill, slugify, type ImportedSkill } from '@/lib/imported-skills'
 import type { AddNodeRequest } from './script-flow-canvas'
 
 const library = [
@@ -58,9 +59,17 @@ export function FloatingSidebar({
   const [collapsed, setCollapsed] = useState(false)
   const [active, setActive] = useState('Techniques')
   const [skillsOpen, setSkillsOpen] = useState(true)
-  const [importedSkills, setImportedSkills] = useState<string[]>([])
+  const [importedSkills, setImportedSkills] = useState<ImportedSkill[]>([])
   const importRef = useRef<HTMLInputElement>(null)
   const auth = useAuth()
+
+  // Load persisted imported skills on mount + listen for changes
+  useEffect(() => {
+    setImportedSkills(loadImportedSkills())
+    const sync = () => setImportedSkills(loadImportedSkills())
+    window.addEventListener('sf:skills:change', sync)
+    return () => window.removeEventListener('sf:skills:change', sync)
+  }, [])
 
   // Derive display name from session
   const email = auth.status === 'authenticated' ? (auth.user?.email ?? '') : ''
@@ -73,13 +82,16 @@ export function FloatingSidebar({
     event.dataTransfer.setData('application/scriptflow-node', JSON.stringify(request))
   }
 
-  const handleImport = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleImport = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? [])
-    if (files.length)
-      setImportedSkills((current) => [
-        ...current,
-        ...files.map((file) => file.name.replace(/\.[^.]+$/, '')),
-      ])
+    for (const file of files) {
+      const markdown = await file.text()
+      saveImportedSkill({
+        id: slugify(file.name),
+        name: file.name.replace(/\.[^.]+$/, '').replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+        markdown,
+      })
+    }
     event.target.value = ''
   }
 
@@ -230,18 +242,28 @@ export function FloatingSidebar({
                       <WandSparkles className="size-3 text-primary/70" />
                       Auteur Method
                     </button>
-                    {importedSkills.map((name) => (
-                      <button
-                        key={name}
-                        type="button"
-                        draggable
-                        onDragStart={(e) => startDrag(e, { type: 'skill' })}
-                        onClick={(e) => onDropNode({ type: 'skill' }, e)}
-                        className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[10px] text-muted-foreground hover:bg-white/[0.05] hover:text-foreground"
-                      >
-                        <FileText className="size-3" />
-                        {name}
-                      </button>
+                    {importedSkills.map((skill) => (
+                      <div key={skill.id} className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          draggable
+                          onDragStart={(e) => startDrag(e, { type: 'skill', skillId: skill.id, skillMarkdown: skill.markdown })}
+                          onClick={(e) => onDropNode({ type: 'skill', skillId: skill.id, skillMarkdown: skill.markdown }, e)}
+                          className="flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-[10px] text-muted-foreground hover:bg-white/[0.05] hover:text-foreground"
+                        >
+                          <FileText className="size-3 shrink-0" />
+                          <span className="truncate">{skill.name}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteImportedSkill(skill.id)}
+                          aria-label={`Remove ${skill.name}`}
+                          className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground/40 hover:text-destructive"
+                          title="Remove"
+                        >
+                          ×
+                        </button>
+                      </div>
                     ))}
                     <input
                       ref={importRef}

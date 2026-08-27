@@ -58,8 +58,13 @@ export function ContentNode({ id, data, selected }: NodeProps<ContentNodeType>) 
   const [previewOpen, setPreviewOpen] = useState(false)
   const areaRef = useRef<HTMLTextAreaElement>(null)
 
-  const meta = CONTENT_KIND_META[data.kind]
-  const Icon = KIND_ICON[data.kind]
+  // Defensive: custom skill stages may produce unknown kind strings
+  const meta = CONTENT_KIND_META[data.kind as ContentKind] ?? {
+    label: data.label || data.kind || 'Stage',
+    hint: 'Custom stage',
+    group: 'both' as const,
+  }
+  const Icon = (KIND_ICON as Record<string, React.ComponentType<{ className?: string }>>)[data.kind] ?? WandSparkles
   const disabled = Boolean(data.locked)
   const generating = data.status === 'generating'
 
@@ -133,9 +138,21 @@ export function ContentNode({ id, data, selected }: NodeProps<ContentNodeType>) 
         <NodeHeader
           icon={Icon}
           title={
-            data.index != null
-              ? `${data.label} ${data.index}`
-              : data.label || meta.label
+            <input
+              value={data.index != null ? `${data.label} ${data.index}` : (data.label || meta.label)}
+              disabled={disabled}
+              onChange={(e) => {
+                // Strip trailing index number when editing the base label
+                const raw = e.target.value
+                const stripped = data.index != null
+                  ? raw.replace(new RegExp(`\\s*${data.index}$`), '').trim()
+                  : raw
+                update(id, { label: stripped || meta.label })
+              }}
+              className="nodrag w-full truncate bg-transparent text-[13px] font-medium leading-tight tracking-[-0.01em] text-foreground outline-none placeholder:text-muted-foreground/50 disabled:cursor-default"
+              placeholder={meta.label}
+              aria-label="Node title"
+            />
           }
           subtitle={meta.hint}
           right={<StatusDot status={data.status} />}

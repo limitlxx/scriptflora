@@ -22,6 +22,8 @@ import type { ContentKind, ScriptFloraNodeType } from '@/lib/flow-types'
 export type AddNodeRequest = {
   type: ScriptFloraNodeType
   kind?: ContentKind
+  skillId?: string       // for imported skills
+  skillMarkdown?: string // full markdown of an imported skill
 }
 
 type MenuItem = AddNodeRequest & {

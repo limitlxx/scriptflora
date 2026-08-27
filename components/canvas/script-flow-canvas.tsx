@@ -42,8 +42,6 @@ import { EmptyState } from './empty-state'
 import { FloatingSidebar } from './floating-sidebar'
 import { nanoid } from 'nanoid'
 
-export { type AddNodeRequest }
-
 const nodeTypes: NodeTypes = {
   brief: BriefNode,
   skill: SkillNode,
@@ -65,6 +63,14 @@ const MINIMAP_COLOR: Record<string, string> = {
 let idCounter = 100
 const nextId = (prefix: string) => `${prefix}-${++idCounter}`
 
+/** Seed the counter above any existing node ids to prevent collisions after reload. */
+function seedIdCounter(nodes: ScriptFlowNode[]) {
+  for (const n of nodes) {
+    const num = parseInt(n.id.split('-').pop() ?? '0', 10)
+    if (!isNaN(num) && num > idCounter) idCounter = num
+  }
+}
+
 function buildNode(request: AddNodeRequest, position: { x: number; y: number }): ScriptFlowNode {
   const { type, kind } = request
   switch (type) {
@@ -74,7 +80,7 @@ function buildNode(request: AddNodeRequest, position: { x: number; y: number }):
         data: { title: '', objective: '', audience: '', platforms: [], duration: '', tone: 'cinematic', keyFacts: [], additionalNotes: '', status: 'empty' },
       }
     case 'skill':
-      return { id: nextId('skill'), type: 'skill', position, data: { selected: null } }
+      return { id: nextId('skill'), type: 'skill', position, data: { selected: request.skillId ?? null, skillMarkdown: request.skillMarkdown ?? '' } }
     case 'continuity':
       return { id: nextId('continuity'), type: 'continuity', position, data: { status: 'empty', score: 0, checkedAt: null, issues: [] } }
     case 'output':
@@ -195,8 +201,14 @@ function reconcile(plan: GenerationPlan, skillNode: ScriptFlowNode, allNodes: Sc
 
 function Flow({ projectId }: { projectId: string }) {
   const saved = loadProjectGraph(projectId)
-  const [nodes, setNodes, onNodesChange] = useNodesState<ScriptFlowNode>((saved?.nodes as ScriptFlowNode[] | undefined) ?? [])
-  const [edges, setEdges, onEdgesChange] = useEdgesState<ScriptFlowEdge>((saved?.edges as ScriptFlowEdge[] | undefined) ?? [])
+  const initialNodes = (saved?.nodes as ScriptFlowNode[] | undefined) ?? []
+  const initialEdges = (saved?.edges as ScriptFlowEdge[] | undefined) ?? []
+
+  // Seed counter so new ids never collide with restored ones
+  seedIdCounter(initialNodes)
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<ScriptFlowNode>(initialNodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState<ScriptFlowEdge>(initialEdges)
 
   const [projectName, setProjectName] = useState(() => {
     if (typeof window === 'undefined') return 'Untitled project'
