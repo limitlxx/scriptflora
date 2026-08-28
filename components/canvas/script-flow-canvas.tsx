@@ -497,6 +497,12 @@ function Flow({ projectId }: { projectId: string }) {
       setGenerateState('preflight-error')
       return
     }
+    // Require user to confirm the brief before running the pipeline
+    if (brief.status !== 'approved') {
+      setPreflightMessage('Confirm the Brief first — click "Confirm Brief" on the Brief node.')
+      setGenerateState('preflight-error')
+      return
+    }
 
     setPreflightMessage(undefined)
     setGenerateError(undefined)
