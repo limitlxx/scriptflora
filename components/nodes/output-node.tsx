@@ -124,7 +124,7 @@ export function OutputNode({ id, data, selected }: NodeProps<OutputNodeType>) {
 
   const handleGenerate = () => {
     const nodes = (
-      (window as unknown as Record<string, unknown>).__scriptflowNodes as CanvasNode[] | undefined
+      (window as unknown as Record<string, unknown>).__ScriptFloraNodes as CanvasNode[] | undefined
     ) ?? []
 
     const contentNodes = nodes.filter(

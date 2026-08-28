@@ -23,8 +23,8 @@ import {
   type GenerationPlan,
   type GenerationRequest,
   type NodeAction,
-  type ScriptFlowEdge,
-  type ScriptFlowNode,
+  type ScriptFloraEdge,
+  type ScriptFloraNode,
   type SkillId,
 } from '@/lib/flow-types'
 import { loadProjectGraph, saveProjectGraph, updateProject } from '@/lib/store'
@@ -64,14 +64,14 @@ let idCounter = 100
 const nextId = (prefix: string) => `${prefix}-${++idCounter}`
 
 /** Seed the counter above any existing node ids to prevent collisions after reload. */
-function seedIdCounter(nodes: ScriptFlowNode[]) {
+function seedIdCounter(nodes: ScriptFloraNode[]) {
   for (const n of nodes) {
     const num = parseInt(n.id.split('-').pop() ?? '0', 10)
     if (!isNaN(num) && num > idCounter) idCounter = num
   }
 }
 
-function buildNode(request: AddNodeRequest, position: { x: number; y: number }): ScriptFlowNode {
+function buildNode(request: AddNodeRequest, position: { x: number; y: number }): ScriptFloraNode {
   const { type, kind } = request
   switch (type) {
     case 'brief':
@@ -110,7 +110,7 @@ function buildNode(request: AddNodeRequest, position: { x: number; y: number }):
   }
 }
 
-function collectExistingContent(skillNodeId: string, allNodes: ScriptFlowNode[], allEdges: ScriptFlowEdge[]): Record<string, string> {
+function collectExistingContent(skillNodeId: string, allNodes: ScriptFloraNode[], allEdges: ScriptFloraEdge[]): Record<string, string> {
   const result: Record<string, string> = {}
   for (const node of allNodes) {
     if (node.type !== 'content') continue
@@ -121,11 +121,11 @@ function collectExistingContent(skillNodeId: string, allNodes: ScriptFlowNode[],
   return result
 }
 
-function reconcile(plan: GenerationPlan, skillNode: ScriptFlowNode, allNodes: ScriptFlowNode[], allEdges: ScriptFlowEdge[]): { nodes: ScriptFlowNode[]; edges: ScriptFlowEdge[] } {
+function reconcile(plan: GenerationPlan, skillNode: ScriptFloraNode, allNodes: ScriptFloraNode[], allEdges: ScriptFloraEdge[]): { nodes: ScriptFloraNode[]; edges: ScriptFloraEdge[] } {
   const existing = allNodes.filter((n) => n.type === 'content' && allEdges.some((e) => e.source === skillNode.id && e.target === n.id))
   const existingByKey = new Map(existing.filter((n) => (n.data as ContentNodeData).stageKey).map((n) => [(n.data as ContentNodeData).stageKey!, n]))
 
-  const newNodes: ScriptFlowNode[] = []
+  const newNodes: ScriptFloraNode[] = []
 
   for (const [i, stage] of plan.stages.entries()) {
     const match = existingByKey.get(stage.stageKey)
@@ -151,7 +151,7 @@ function reconcile(plan: GenerationPlan, skillNode: ScriptFlowNode, allNodes: Sc
   const keptEdges = allEdges.filter((e) => !(e.source === skillNode.id && allContentIds.has(e.target)))
 
   // Skill → content fan-out edges
-  const skillToContent: ScriptFlowEdge[] = [...existing.map((n) => n.id), ...newNodes.map((n) => n.id)].map((targetId) => ({
+  const skillToContent: ScriptFloraEdge[] = [...existing.map((n) => n.id), ...newNodes.map((n) => n.id)].map((targetId) => ({
     id: `${skillNode.id}->${targetId}`,
     source: skillNode.id,
     target: targetId,
@@ -164,7 +164,7 @@ function reconcile(plan: GenerationPlan, skillNode: ScriptFlowNode, allNodes: Sc
   // Continuity and output nodes need ALL content nodes as inputs so they can
   // read every stage. Export connects from continuity/output (or last content).
   const allContentNodeIds = [...existing.map((n) => n.id), ...newNodes.map((n) => n.id)]
-  const autoEdges: ScriptFlowEdge[] = []
+  const autoEdges: ScriptFloraEdge[] = []
 
   const edgeExists = (source: string, target: string) =>
     keptEdges.some((e) => e.source === source && e.target === target) ||
@@ -201,14 +201,14 @@ function reconcile(plan: GenerationPlan, skillNode: ScriptFlowNode, allNodes: Sc
 
 function Flow({ projectId }: { projectId: string }) {
   const saved = loadProjectGraph(projectId)
-  const initialNodes = (saved?.nodes as ScriptFlowNode[] | undefined) ?? []
-  const initialEdges = (saved?.edges as ScriptFlowEdge[] | undefined) ?? []
+  const initialNodes = (saved?.nodes as ScriptFloraNode[] | undefined) ?? []
+  const initialEdges = (saved?.edges as ScriptFloraEdge[] | undefined) ?? []
 
   // Seed counter so new ids never collide with restored ones
   seedIdCounter(initialNodes)
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<ScriptFlowNode>(initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState<ScriptFlowEdge>(initialEdges)
+  const [nodes, setNodes, onNodesChange] = useNodesState<ScriptFloraNode>(initialNodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState<ScriptFloraEdge>(initialEdges)
 
   const [projectName, setProjectName] = useState(() => {
     if (typeof window === 'undefined') return 'Untitled project'
@@ -256,7 +256,7 @@ function Flow({ projectId }: { projectId: string }) {
 
   // Autosave + expose nodes for export
   useEffect(() => {
-    ;(window as unknown as Record<string, unknown>).__scriptflowNodes = nodes
+    ;(window as unknown as Record<string, unknown>).__ScriptFloraNodes = nodes
     saveProjectGraph(projectId, nodes, edges)
     updateProject(projectId, { nodeCount: nodes.filter((n) => n.type === 'content').length })
   }, [nodes, edges, projectId])
@@ -354,11 +354,11 @@ function Flow({ projectId }: { projectId: string }) {
   }, [setNodes, setEdges])
 
   const update = useCallback((id: string, patch: Record<string, unknown>) => {
-    setNodes((cur) => cur.map((n) => n.id === id ? ({ ...n, data: { ...n.data, ...patch } } as ScriptFlowNode) : n))
+    setNodes((cur) => cur.map((n) => n.id === id ? ({ ...n, data: { ...n.data, ...patch } } as ScriptFloraNode) : n))
   }, [setNodes])
 
   // Single-node regenerate via API
-  const regenerateSingleNode = useCallback(async (id: string, allNodes: ScriptFlowNode[], allEdges: ScriptFlowEdge[]) => {
+  const regenerateSingleNode = useCallback(async (id: string, allNodes: ScriptFloraNode[], allEdges: ScriptFloraEdge[]) => {
     const node = allNodes.find((n) => n.id === id)
     if (!node || node.type !== 'content') return
     const d = node.data as ContentNodeData
@@ -432,7 +432,7 @@ function Flow({ projectId }: { projectId: string }) {
         setNodes((c) => {
           const src = c.find((n) => n.id === id)
           if (!src) return c
-          return [...c, { ...src, id: nextId(src.type ?? 'node'), position: { x: src.position.x + 40, y: src.position.y + 40 }, selected: false, data: { ...src.data, approved: false, locked: false, stageKey: '' } } as ScriptFlowNode]
+          return [...c, { ...src, id: nextId(src.type ?? 'node'), position: { x: src.position.x + 40, y: src.position.y + 40 }, selected: false, data: { ...src.data, approved: false, locked: false, stageKey: '' } } as ScriptFloraNode]
         })
         break
       case 'regenerate':
@@ -463,8 +463,8 @@ function Flow({ projectId }: { projectId: string }) {
           window.clearInterval(prog)
           setNodes((c) => c.map((n) => {
             if (n.id !== id) return n
-            if (n.type === 'continuity') return { ...n, data: { ...n.data, status: 'draft', progress: 100, score: 94, checkedAt: 'just now', issues: [] } } as ScriptFlowNode
-            return { ...n, data: { ...n.data, status: 'draft', progress: 100 } } as ScriptFlowNode
+            if (n.type === 'continuity') return { ...n, data: { ...n.data, status: 'draft', progress: 100, score: 94, checkedAt: 'just now', issues: [] } } as ScriptFloraNode
+            return { ...n, data: { ...n.data, status: 'draft', progress: 100 } } as ScriptFloraNode
           }))
         }, 1900))
         return
@@ -535,7 +535,12 @@ function Flow({ projectId }: { projectId: string }) {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: res.statusText }))
-        setGenerateError(res.status === 401 ? 'Sign in with ChatGPT to generate.' : (body.error ?? 'Generation failed.'))
+        if (res.status === 401) {
+          // Session expired — redirect to landing so the user can log in again
+          window.location.href = '/?session=expired'
+          return
+        }
+        setGenerateError(body.error ?? 'Generation failed.')
         setGenerateState('error')
         setEdges((c) => c.map((e) => ({ ...e, data: { flowing: false } })))
         return
@@ -569,7 +574,7 @@ function Flow({ projectId }: { projectId: string }) {
   }, [])
 
   // Shared helper: wire a newly-added downstream node to all existing content nodes
-  const autoWireNode = useCallback((newNode: ScriptFlowNode, type: string) => {
+  const autoWireNode = useCallback((newNode: ScriptFloraNode, type: string) => {
     setEdges((curEdges) => {
       setNodes((curNodes) => {
         const contentNodes = curNodes.filter((n) => n.type === 'content')
@@ -577,7 +582,7 @@ function Flow({ projectId }: { projectId: string }) {
         const outputNodes = curNodes.filter((n) => n.type === 'output' && n.id !== newNode.id)
 
         const seen = new Set(curEdges.map((e) => e.id))
-        const extra: ScriptFlowEdge[] = []
+        const extra: ScriptFloraEdge[] = []
         const add = (src: string, tgt: string) => {
           const id = `${src}->${tgt}`
           if (!seen.has(id)) { seen.add(id); extra.push({ id, source: src, target: tgt, type: 'smoothstep', animated: false, data: { flowing: false } }) }
@@ -631,7 +636,7 @@ function Flow({ projectId }: { projectId: string }) {
 
   const handleCanvasDrop = useCallback((event: React.DragEvent) => {
     event.preventDefault()
-    const raw = event.dataTransfer.getData('application/scriptflow-node')
+    const raw = event.dataTransfer.getData('application/ScriptFlora-node')
     if (!raw) return
     try { handleDropNode(JSON.parse(raw) as AddNodeRequest, event) } catch { /* ignore malformed */ }
   }, [handleDropNode])
@@ -645,7 +650,7 @@ function Flow({ projectId }: { projectId: string }) {
   return (
     <NodeActionProvider value={actions}>
       <div className="bg-canvas relative h-dvh w-full">
-        <ReactFlow<ScriptFlowNode, ScriptFlowEdge>
+        <ReactFlow<ScriptFloraNode, ScriptFloraEdge>
           nodes={nodes}
           edges={styledEdges}
           onNodesChange={onNodesChange}
@@ -757,10 +762,13 @@ function Flow({ projectId }: { projectId: string }) {
   )
 }
 
-export function ScriptFlowCanvas({ projectId }: { projectId: string }) {
+export function ScriptFloraCanvas({ projectId }: { projectId: string }) {
   return (
     <ReactFlowProvider>
       <Flow projectId={projectId} />
     </ReactFlowProvider>
   )
 }
+
+// Alias so canvas-client.tsx can import either name without breaking
+export { ScriptFloraCanvas as ScriptFlowCanvas }

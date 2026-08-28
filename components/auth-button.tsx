@@ -84,7 +84,7 @@ export function AuthButton() {
   // Unauthenticated / error
   const handleLogin = () => {
     const popup = openLoginWithChatGPTConsentPopup({
-      appName: 'ScriptFlow',
+      appName: 'ScriptFlora',
       login: auth.login,
     })
     if (!popup) void auth.login()

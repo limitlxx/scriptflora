@@ -2,9 +2,10 @@
 
 import dynamic from 'next/dynamic'
 
-// ssr:false must live in a Client Component
-export const ScriptFlowCanvas = dynamic(
-  () => import('./script-flow-canvas').then((m) => ({ default: m.ScriptFlowCanvas })),
+// ssr:false must live in a Client Component.
+// The canvas file exports ScriptFloraCanvas — use that exact name.
+const CanvasLazy = dynamic(
+  () => import('./script-flow-canvas').then((m) => ({ default: m.ScriptFloraCanvas })),
   {
     ssr: false,
     loading: () => (
@@ -17,3 +18,7 @@ export const ScriptFlowCanvas = dynamic(
     ),
   },
 )
+
+// Export under both names so canvas page works regardless
+export const ScriptFloraCanvas = CanvasLazy
+export const ScriptFlowCanvas = CanvasLazy

@@ -115,13 +115,29 @@ Generate the complete script. Return only JSON.`
       text += delta
     }
 
+    if (!text.trim()) {
+      return Response.json({ error: 'Empty response from model. Your session may have expired — sign in again.' }, { status: 401 })
+    }
+
     const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
-    const parsed = JSON.parse(cleaned) as { stages: GenerationPlan['stages'] }
+
+    let parsed: { stages: GenerationPlan['stages'] }
+    try {
+      parsed = JSON.parse(cleaned) as { stages: GenerationPlan['stages'] }
+    } catch {
+      console.error('[/api/generate] JSON parse failed. Raw text:', cleaned.slice(0, 200))
+      return Response.json({ error: 'Model returned invalid JSON. Try again.' }, { status: 500 })
+    }
+
     if (!Array.isArray(parsed.stages)) throw new Error('Invalid plan shape')
 
     return Response.json({ stages: parsed.stages, generationId: nanoid(10) } satisfies GenerationPlan)
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Generation failed'
+    // Surface session expiry clearly
+    if (message.includes('401') || message.includes('Unauthorized') || message.includes('session')) {
+      return Response.json({ error: 'Session expired. Sign in with ChatGPT again.' }, { status: 401 })
+    }
     console.error('[/api/generate]', message)
     return Response.json({ error: message }, { status: 500 })
   }

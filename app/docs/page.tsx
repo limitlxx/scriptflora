@@ -398,7 +398,7 @@ export default function DocsPage() {
             <div className="space-y-5 text-[13px] leading-7 text-muted-foreground">
               <p>
                 A <strong className="text-foreground">skill</strong> is a plain Markdown file that
-                describes a pipeline methodology. ScriptFlow reads it as the system prompt context
+                describes a pipeline methodology. ScriptFlora reads it as the system prompt context
                 when generating your script, so the quality of your skill file directly determines
                 the quality of the output.
               </p>

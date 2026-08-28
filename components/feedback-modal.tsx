@@ -84,7 +84,7 @@ export function FeedbackModal() {
 
         {/* Copy */}
         <h2 className="mb-1.5 text-[15px] font-medium text-foreground">
-          Enjoying ScriptFlow?
+          Enjoying ScriptFlora?
         </h2>
         <p className="text-[12.5px] leading-relaxed text-muted-foreground">
           You've been scripting for a while — we'd love to hear what you think.

@@ -31,7 +31,7 @@ async function runContinuityCheck(
 ) {
   type CanvasNode = { type?: string; data: Record<string, unknown> }
   const allNodes = (
-    (window as unknown as Record<string, unknown>).__scriptflowNodes as CanvasNode[] | undefined
+    (window as unknown as Record<string, unknown>).__ScriptFloraNodes as CanvasNode[] | undefined
   ) ?? []
 
   const brief = allNodes.find((n) => n.type === 'brief')

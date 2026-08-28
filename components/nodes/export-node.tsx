@@ -57,7 +57,7 @@ export function ExportNode({ id, data, selected }: NodeProps<ExportNodeType>) {
   const handleExport = () => {
     // Read from the canvas-exposed global (set by script-flow-canvas on every node change)
     const nodes = (
-      (window as unknown as Record<string, unknown>).__scriptflowNodes as CanvasNode[] | undefined
+      (window as unknown as Record<string, unknown>).__ScriptFloraNodes as CanvasNode[] | undefined
     ) ?? []
 
     const contentNodes = nodes.filter((n) => n.type === 'content')

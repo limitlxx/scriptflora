@@ -2,6 +2,7 @@ import { Suspense } from 'react'
 import Link from 'next/link'
 import { Logo } from '@/components/logo'
 import { AuthButton } from '@/components/auth-button'
+import { SessionBanner } from '@/components/session-banner'
 
 export default function LandingPage() {
   return (
@@ -58,6 +59,9 @@ export default function LandingPage() {
         </p>
 
         <div className="mt-10 flex flex-col items-center gap-4">
+          <Suspense fallback={null}>
+            <SessionBanner />
+          </Suspense>
           <Suspense fallback={
             <div className="flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-[13px] text-muted-foreground">
               <div className="size-4 animate-spin rounded-full border-2 border-white/10 border-t-primary" />

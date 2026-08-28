@@ -79,7 +79,7 @@ export function FloatingSidebar({
 
   const startDrag = (event: DragEvent<HTMLButtonElement>, request: AddNodeRequest) => {
     event.dataTransfer.effectAllowed = 'copy'
-    event.dataTransfer.setData('application/scriptflow-node', JSON.stringify(request))
+    event.dataTransfer.setData('application/ScriptFlora-node', JSON.stringify(request))
   }
 
   const handleImport = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -103,7 +103,7 @@ export function FloatingSidebar({
         'backdrop-blur-2xl transition-[width] duration-300',
         collapsed ? 'w-12' : 'w-64',
       )}
-      aria-label="ScriptFlow workspace sidebar"
+      aria-label="ScriptFlora workspace sidebar"
     >
       {/* Workspace header */}
       <div className="flex h-14 shrink-0 items-center border-b border-white/[0.06] px-2.5">
@@ -121,7 +121,7 @@ export function FloatingSidebar({
                 {displayName}
               </span>
               <span className="block text-[10px] text-muted-foreground">
-                {email || 'ScriptFlow'}
+                {email || 'ScriptFlora'}
               </span>
             </span>
           )}
