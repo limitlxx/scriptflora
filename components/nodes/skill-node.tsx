@@ -1,10 +1,11 @@
 'use client'
 
 import { type NodeProps } from '@xyflow/react'
-import { Check, FileText, Layers, Lock, LockOpen, RefreshCw, Trash2, WandSparkles } from 'lucide-react'
+import { Check, FileText, Layers, Lock, LockOpen, RefreshCw, Trash2, Tv, WandSparkles } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { SkillNode as SkillNodeType } from '@/lib/flow-types'
+import { SKILL_MANIFESTS } from '@/lib/flow-types'
 import { loadImportedSkills, type ImportedSkill } from '@/lib/imported-skills'
 import { useNodeActions } from '@/components/canvas/node-action-context'
 import {
@@ -21,26 +22,22 @@ type SkillOption = {
   name: string
   tagline: string
   stages: string
+  version: string
   icon: React.ComponentType<{ className?: string }>
   markdown?: string
 }
 
-const BUILT_IN: SkillOption[] = [
-  {
-    id: 'standard',
-    name: 'Standard Script',
-    tagline: 'Hook, scenes, dialogue, visual direction, close. Reliable structure for brand and social work.',
-    stages: '5 stages',
-    icon: Layers,
-  },
-  {
-    id: 'auteur',
-    name: 'Storyline Auteur Script',
-    tagline: 'Stageplay → Screenplay → Technical Screenplay → Production Summary → Auteur Script. Built for generative video continuity.',
-    stages: '5 stages',
-    icon: WandSparkles,
-  },
-]
+// Phase 8: built-in skills are now driven by SKILL_MANIFESTS — single source of truth
+const BUILT_IN: SkillOption[] = Object.values(SKILL_MANIFESTS).map((m) => ({
+  id: m.skillId.replace('scriptflora.', ''), // keep short id for backward compat
+  name: m.name,
+  tagline: m.tagline,
+  stages: m.stages,
+  version: m.version,
+  icon: m.skillId === 'scriptflora.auteur' ? WandSparkles
+      : m.skillId === 'scriptflora.series' ? Tv
+      : Layers,
+}))
 
 export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
   const { update, act } = useNodeActions()
@@ -64,6 +61,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
       name: s.name,
       tagline: 'Custom imported skill',
       stages: 'Custom pipeline',
+      version: s.version,
       icon: FileText,
       markdown: s.markdown,
     })),
@@ -186,9 +184,15 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
                   <p className="text-muted-foreground mt-1.5 text-[11px] leading-relaxed pl-5">
                     {skill.tagline}
                   </p>
-                  <span className="text-muted-foreground/70 mt-2 block font-mono text-[10px] pl-5">
-                    {skill.stages}
-                  </span>
+                  <div className="mt-2 flex items-center gap-3 pl-5">
+                    <span className="text-muted-foreground/70 font-mono text-[10px]">
+                      {skill.stages}
+                    </span>
+                    {/* Phase 8: show version for transparency */}
+                    <span className="text-muted-foreground/40 font-mono text-[10px]">
+                      v{skill.version}
+                    </span>
+                  </div>
                 </button>
               )
             })}
@@ -206,7 +210,7 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
           <span>Determines downstream stages</span>
           {selectedSkill && (
             <span className="font-mono text-[10px] text-muted-foreground/60">
-              {selectedSkill.stages}
+              {selectedSkill.stages} · v{selectedSkill.version}
             </span>
           )}
         </NodeFooter>
@@ -214,3 +218,4 @@ export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {
     </div>
   )
 }
+

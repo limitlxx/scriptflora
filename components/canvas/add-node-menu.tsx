@@ -2,15 +2,31 @@
 
 import {
   ArrowDownToLine,
+  BookMarked,
+  BookOpen,
   Camera,
+  Clapperboard,
   FileText,
+  Film,
+  Flag,
+  Gauge,
+  Globe,
+  Image,
   LayoutGrid,
   Layers,
   MessageSquare,
   Milestone,
+  Package,
+  Play,
+  Scissors,
+  Share2,
   ShieldCheck,
   Sparkle,
+  Sparkles,
   Target,
+  Tv,
+  Users,
+  Video,
   WandSparkles,
   Eye,
   Zap,
@@ -40,6 +56,14 @@ const GROUPS: { heading: string; items: MenuItem[] }[] = [
     ],
   },
   {
+    heading: 'Continuity core',
+    items: [
+      { label: 'Character Bible', icon: Users, type: 'character-bible' },
+      { label: 'World / Style Lock', icon: Globe, type: 'style-lock' },
+      { label: 'Continuity Log', icon: BookMarked, type: 'continuity-log' },
+    ],
+  },
+  {
     heading: 'Standard Script',
     items: [
       { label: 'Hook', icon: Zap, type: 'content', kind: 'hook' },
@@ -57,6 +81,52 @@ const GROUPS: { heading: string; items: MenuItem[] }[] = [
       { label: 'Technical Screenplay', icon: Milestone, type: 'content', kind: 'auteur-technical' },
       { label: 'Production Summary', icon: Eye, type: 'content', kind: 'auteur-production-summary' },
       { label: 'Auteur Script', icon: WandSparkles, type: 'content', kind: 'auteur-script' },
+    ],
+  },
+  {
+    heading: 'Shot layer',
+    items: [
+      { label: 'Shot List', icon: Clapperboard, type: 'shot-list' },
+      { label: 'Storyboard Frame', icon: Image, type: 'storyboard' },
+      { label: 'Sequence', icon: Film, type: 'sequence' },
+    ],
+  },
+  {
+    heading: 'Media generation',
+    items: [
+      { label: 'Generate Shot', icon: Play, type: 'generate-shot' },
+      { label: 'Result', icon: Video, type: 'result' },
+      { label: 'Checkpoint', icon: Flag, type: 'checkpoint' },
+    ],
+  },
+  {
+    heading: 'Packs, social & team',
+    items: [
+      { label: 'Project Pack', icon: Clapperboard, type: 'project-pack' },
+      { label: 'Social Variants', icon: Share2, type: 'social-variants' },
+      { label: 'Team Workspace', icon: Users, type: 'team-workspace' },
+    ],
+  },
+  {
+    heading: 'Series memory',
+    items: [
+      { label: 'Episode Memory', icon: BookOpen, type: 'episode-memory' },
+      { label: 'Series Arc', icon: Tv, type: 'series-arc' },
+    ],
+  },
+  {
+    heading: 'Autopilot',
+    items: [
+      { label: 'Batch Planner', icon: Sparkles, type: 'batch-planner' },
+      { label: 'Autopilot Dashboard', icon: Gauge, type: 'autopilot-dashboard' },
+    ],
+  },
+  {
+    heading: 'Assembly & export',
+    items: [
+      { label: 'Timeline', icon: Scissors, type: 'timeline' },
+      { label: 'HyperFrames', icon: Film, type: 'hyperframes' },
+      { label: 'Export Package', icon: Package, type: 'export-package' },
     ],
   },
   {

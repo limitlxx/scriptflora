@@ -248,6 +248,16 @@ export function ContentNode({ id, data, selected }: NodeProps<ContentNodeType>) 
             )}
             {data.locked && !data.approved && <span>Locked from edits</span>}
             {!data.approved && !data.locked && <span>{words} words</span>}
+            {/* Phase 8: stale reason badge — soft warning, never blocking */}
+            {data.staleReason && !data.locked && (
+              <span className="text-warning/80 rounded bg-warning/10 px-1.5 py-0.5 text-[9.5px] font-medium leading-none">
+                {data.staleReason === 'skill_update'
+                  ? 'Skill update available'
+                  : data.staleReason === 'upstream_change'
+                  ? 'Upstream changed'
+                  : 'Brief changed'}
+              </span>
+            )}
           </span>
           {data.tokens != null && (
             <span className="font-mono tracking-tight">

@@ -1,4 +1,5 @@
 import type { ScriptFloraEdge, ScriptFloraNode } from './flow-types'
+import { CONTENT_NODE_CONTRACTS, SKILL_MANIFESTS } from './flow-types'
 
 const edge = (
   source: string,
@@ -12,6 +13,13 @@ const edge = (
   animated: false,
   data: { flowing },
 })
+
+// Phase 8: provenance for all standard-skill demo nodes
+const standardProvenance = {
+  skillId: SKILL_MANIFESTS.standard.skillId,
+  skillVersion: SKILL_MANIFESTS.standard.version,
+  publisherId: SKILL_MANIFESTS.standard.publisherId,
+}
 
 export const initialNodes: ScriptFloraNode[] = [
   {
@@ -33,13 +41,17 @@ export const initialNodes: ScriptFloraNode[] = [
       ],
       additionalNotes: 'Practical red-light darkroom aesthetic throughout.',
       status: 'draft',
+      origin: 'core',
     },
   },
   {
     id: 'skill-1',
     type: 'skill',
     position: { x: 468, y: 168 },
-    data: { selected: 'standard' },
+    data: {
+      selected: 'standard',
+      origin: 'core',
+    },
   },
   {
     id: 'hook-1',
@@ -55,6 +67,9 @@ export const initialNodes: ScriptFloraNode[] = [
       approved: true,
       locked: true,
       tokens: 412,
+      origin: 'skill',
+      provenance: { ...standardProvenance, skillNodeKey: 'hook' },
+      contract: CONTENT_NODE_CONTRACTS['hook'],
     },
   },
   {
@@ -70,6 +85,9 @@ export const initialNodes: ScriptFloraNode[] = [
         'INT. DARKROOM — DUSK\n\nMARGOT (68) works under red light, hands steady in a way the rest of her is not. Contact sheets hang like laundry. She stops at one frame and does not move.',
       status: 'draft',
       tokens: 688,
+      origin: 'skill',
+      provenance: { ...standardProvenance, skillNodeKey: 'scene' },
+      contract: CONTENT_NODE_CONTRACTS['scene'],
     },
   },
   {
@@ -85,6 +103,9 @@ export const initialNodes: ScriptFloraNode[] = [
         'MARGOT\nI shot four hundred weddings. I never once looked at the mothers.\n\nELISE\nSo look now.',
       status: 'generating',
       tokens: 0,
+      origin: 'skill',
+      provenance: { ...standardProvenance, skillNodeKey: 'dialogue' },
+      contract: CONTENT_NODE_CONTRACTS['dialogue'],
     },
   },
   {
@@ -100,6 +121,9 @@ export const initialNodes: ScriptFloraNode[] = [
         'Handheld, 40mm, practical red only. Let the grain stay. Cut on the blink, never on the line.',
       status: 'draft',
       tokens: 219,
+      origin: 'skill',
+      provenance: { ...standardProvenance, skillNodeKey: 'visual' },
+      contract: CONTENT_NODE_CONTRACTS['visual'],
     },
   },
   {
@@ -113,6 +137,9 @@ export const initialNodes: ScriptFloraNode[] = [
       content: 'Aperture. Some things deserve to be looked at properly.',
       status: 'draft',
       tokens: 96,
+      origin: 'skill',
+      provenance: { ...standardProvenance, skillNodeKey: 'cta' },
+      contract: CONTENT_NODE_CONTRACTS['cta'],
     },
   },
   {
@@ -123,6 +150,7 @@ export const initialNodes: ScriptFloraNode[] = [
       status: 'draft',
       score: 88,
       checkedAt: '2 min ago',
+      origin: 'core',
       issues: [
         {
           id: 'i1',
@@ -154,6 +182,7 @@ export const initialNodes: ScriptFloraNode[] = [
     position: { x: 1330, y: 690 },
     data: {
       status: 'draft',
+      origin: 'core',
       formats: [
         { id: 'screenplay', label: 'Screenplay', description: 'Industry-standard scene formatting', enabled: true },
         { id: 'shotlist', label: 'Shot list', description: 'One row per shot, with lens notes', enabled: true },
@@ -172,6 +201,7 @@ export const initialNodes: ScriptFloraNode[] = [
       format: 'md',
       includeNotes: true,
       filename: 'aperture-launch-v1',
+      origin: 'core',
     },
   },
 ]

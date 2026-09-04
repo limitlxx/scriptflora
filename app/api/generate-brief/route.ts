@@ -12,6 +12,10 @@ export type GenerateBriefRequest = {
   platform?: string
   duration?: string
   audience?: string
+  /** Phase 9: raw document text extracted from uploaded file */
+  docText?: string
+  /** Phase 9: name of the uploaded file (for provenance display) */
+  sourceFile?: string
 }
 
 export type GenerateBriefResult = {
@@ -60,18 +64,24 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json().catch(() => null) as GenerateBriefRequest | null
-  if (!body?.idea?.trim()) {
-    return Response.json({ error: 'idea is required' }, { status: 400 })
+  if (!body?.idea?.trim() && !body?.docText?.trim()) {
+    return Response.json({ error: 'idea or docText is required' }, { status: 400 })
   }
 
-  const { idea, platform, duration, audience } = body
+  const { idea, platform, duration, audience, docText } = body
+
+  // Phase 9: when docText is provided, use it as the source with a different prompt framing
+  const isDocExtract = Boolean(docText?.trim())
+
   const hints = [
     platform && `Platform hint: ${platform}`,
     duration && `Duration hint: ${duration}`,
     audience && `Audience hint: ${audience}`,
   ].filter(Boolean).join('\n')
 
-  const prompt = `Idea: ${idea.trim()}${hints ? `\n\n${hints}` : ''}\n\nGenerate the brief. Return only JSON.`
+  const prompt = isDocExtract
+    ? `Extract a production brief from the following document.\n\nDocument:\n${docText!.trim().slice(0, 8000)}${hints ? `\n\nHints:\n${hints}` : ''}\n\nGenerate the brief. Return only JSON.`
+    : `Idea: ${idea!.trim()}${hints ? `\n\n${hints}` : ''}\n\nGenerate the brief. Return only JSON.`
 
   const origin = new URL(request.url).origin
   const proxyFetch = auth.proxyFetch(request)
@@ -82,11 +92,27 @@ export async function POST(request: Request) {
     let text = ''
     for await (const delta of result.textStream) text += delta
 
+    if (!text.trim()) {
+      return Response.json({ error: 'Empty response — your session may have expired. Sign in again.' }, { status: 401 })
+    }
+
     const cleaned = text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim()
-    const parsed = JSON.parse(cleaned) as GenerateBriefResult
+
+    let parsed: GenerateBriefResult
+    try {
+      parsed = JSON.parse(cleaned) as GenerateBriefResult
+    } catch {
+      console.error('[/api/generate-brief] JSON parse failed:', cleaned.slice(0, 200))
+      return Response.json({ error: 'Model returned invalid JSON. Try again.' }, { status: 500 })
+    }
+
     return Response.json(parsed)
   } catch (err) {
-    console.error('[/api/generate-brief]', err)
-    return Response.json({ error: err instanceof Error ? err.message : 'Generation failed' }, { status: 500 })
-  }
-}
+    const message = err instanceof Error ? err.message : 'Generation failed'
+    // Surface session expiry clearly — mirrors /api/generate
+    if (message.includes('401') || message.includes('Unauthorized') || message.includes('session')) {
+      return Response.json({ error: 'Session expired. Sign in with ChatGPT again.' }, { status: 401 })
+    }
+    console.error('[/api/generate-brief]', message)
+    return Response.json({ error: message }, { status: 500 })
+  }}

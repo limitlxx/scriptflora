@@ -13,6 +13,23 @@ import { join } from 'path'
 import { auth } from '@/lib/chatgpt-handler'
 import type { GenerationRequest, GenerationPlan } from '@/lib/flow-types'
 
+// Shape of Phase 1 continuity context passed from the canvas
+type ContinuityContext = {
+  characters?: Array<{
+    name: string
+    role: string
+    visualDescription: string
+    wardrobe: string
+    voiceProfile: { voiceId: string; tone: string; style: string }
+  }>
+  styleLock?: {
+    medium: string
+    visualRules: string
+    locations: string
+    hardConstraints: string
+  }
+}
+
 // Only models supported by the ChatGPT Codex endpoint
 const SUPPORTED_MODELS = ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'] as const
 type SupportedModel = (typeof SUPPORTED_MODELS)[number]
@@ -31,11 +48,11 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Sign in with ChatGPT to generate.' }, { status: 401 })
   }
 
-  let body: GenerationRequest
+  let body: GenerationRequest & { continuityContext?: ContinuityContext }
   try { body = await request.json() }
   catch { return Response.json({ error: 'Invalid JSON' }, { status: 400 }) }
 
-  const { brief, skill, existingContent } = body
+  const { brief, skill, existingContent, continuityContext } = body
   if (!brief || !skill) {
     return Response.json({ error: 'brief and skill are required' }, { status: 400 })
   }
@@ -46,7 +63,9 @@ export async function POST(request: Request) {
 
   let skillMarkdown = body.skillMarkdown ?? ''
   if (!skillMarkdown) {
-    const file = skill === 'auteur' ? 'auteur-script.md' : 'standard-script.md'
+    const file = skill === 'auteur' ? 'auteur-script.md'
+      : skill === 'series' ? 'series-script.md'
+      : 'standard-script.md'
     try {
       skillMarkdown = await readFile(join(process.cwd(), 'public', 'skills', file), 'utf-8')
     } catch {
@@ -63,6 +82,27 @@ export async function POST(request: Request) {
   const lockedLines = Object.keys(existingContent ?? {}).length
     ? Object.entries(existingContent).map(([k, v]) => `[${k}]: ${String(v).slice(0, 120)}`).join('\n')
     : 'None'
+
+  // Phase 1: build Character Bible + Style Lock injection
+  const characterLines = continuityContext?.characters?.length
+    ? continuityContext.characters.map((c) =>
+        `- ${c.name} (${c.role}): ${c.visualDescription}. Wardrobe: ${c.wardrobe}. Voice: ${c.voiceProfile.tone}, ${c.voiceProfile.style}.`
+      ).join('\n')
+    : null
+
+  const styleLockLines = continuityContext?.styleLock
+    ? [
+        `Medium: ${continuityContext.styleLock.medium}`,
+        `Visual rules: ${continuityContext.styleLock.visualRules}`,
+        continuityContext.styleLock.locations && `Locations: ${continuityContext.styleLock.locations}`,
+        `NEVER change: ${continuityContext.styleLock.hardConstraints}`,
+      ].filter(Boolean).join('\n')
+    : null
+
+  const continuitySection = [
+    characterLines && `CHARACTER BIBLE (must be consistent in every scene):\n${characterLines}`,
+    styleLockLines && `STYLE LOCK (visual rules — enforce in every scene):\n${styleLockLines}`,
+  ].filter(Boolean).join('\n\n')
 
   const system = `You are a professional scriptwriter. Generate structured script content following the skill methodology EXACTLY.
 
@@ -91,7 +131,7 @@ Tone: ${brief.tone}
 Key Facts: ${keyFactLines}
 Notes: ${brief.additionalNotes || 'None'}
 Skill: ${skill}
-Locked (preserve verbatim): ${lockedLines}
+Locked (preserve verbatim): ${lockedLines}${continuitySection ? `\n\n${continuitySection}` : ''}
 Generate the complete script. Return only JSON.`
 
   const extraHeaders: Record<string, string> = {

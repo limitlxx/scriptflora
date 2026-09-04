@@ -3,9 +3,9 @@
 import { type NodeProps } from '@xyflow/react'
 import {
   AlertTriangle, Check, FileText,
-  Lock, LockOpen, Plus, RefreshCw, Sparkles, Trash2, WandSparkles, X,
+  Lock, LockOpen, Plus, RefreshCw, Sparkles, Trash2, Upload, WandSparkles, X,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import {
   PLATFORM_OPTIONS, TONE_OPTIONS,
@@ -29,17 +29,34 @@ export function BriefNode({ id, data, selected }: NodeProps<BriefNodeType>) {
   const [assumptions, setAssumptions] = useState<string[]>([])
   // Has the user confirmed this brief? Gates pipeline generation
   const [confirmed, setConfirmed] = useState(() => data.status === 'approved')
+  // Phase 9 — upload state
+  const uploadRef = useRef<HTMLInputElement>(null)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
 
   const disabled = Boolean(data.locked)
 
   const set = <K extends keyof typeof data>(key: K, value: (typeof data)[K]) => {
     update(id, { [key]: value })
-    // Editing a field manually clears its assumption flag
+    // Editing a field manually clears its assumption flag and validation error
     setAssumedFields((prev) => prev.filter((f) => f !== key))
+    if (validationErrors.length > 0) setValidationErrors([])
   }
 
   const isEmpty = !data.title && !data.objective && !data.audience
   const isPartial = !isEmpty && (!data.title || !data.objective || !data.duration)
+
+  // Phase 0: validate required fields before allowing confirm
+  const [validationErrors, setValidationErrors] = useState<string[]>([])
+
+  const validateBrief = (): boolean => {
+    const errs: string[] = []
+    if (!data.title?.trim()) errs.push('Title / Topic is required')
+    if (!data.objective?.trim()) errs.push('Objective is required')
+    if (!data.duration?.trim()) errs.push('Duration is required')
+    setValidationErrors(errs)
+    return errs.length === 0
+  }
 
   const togglePlatform = (p: string) => {
     const platforms = data.platforms ?? []
@@ -68,10 +85,66 @@ export function BriefNode({ id, data, selected }: NodeProps<BriefNodeType>) {
   }
 
   const handleConfirm = () => {
+    if (!validateBrief()) return
     setConfirmed(true)
     setAssumptions([])
     setAssumedFields([])
     update(id, { status: 'approved' })
+  }
+
+  // Phase 9 — read uploaded file and extract brief fields
+  const handleUpload = async (file: File) => {
+    setUploading(true)
+    setUploadError('')
+
+    try {
+      // Read file as text — works for .txt, .md; strips most PDF text
+      const text = await file.text()
+      const docText = text.trim().slice(0, 10000)
+
+      if (!docText) {
+        setUploadError('File appears to be empty or unreadable.')
+        return
+      }
+
+      const res = await fetch('/api/generate-brief', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          idea: '',
+          docText,
+          sourceFile: file.name,
+        }),
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({ error: res.statusText }))
+        setUploadError(body.error ?? 'Extraction failed. Try again.')
+        return
+      }
+
+      const result = await res.json() as import('@/app/api/generate-brief/route').GenerateBriefResult
+      // Reuse the same confirm flow as Generate Brief — flags assumed fields amber
+      handleGeneratorConfirm(
+        {
+          title: result.title,
+          objective: result.objective,
+          audience: result.audience,
+          platforms: result.platforms as string[],
+          duration: result.duration,
+          tone: (result.tone as import('@/lib/flow-types').ToneId) ?? 'cinematic',
+          keyFacts: result.keyFacts,
+          additionalNotes: result.additionalNotes,
+          sourceFile: file.name,
+        },
+        [...(result.assumptions ?? []), `source: extracted from "${file.name}"`],
+      )
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed.')
+    } finally {
+      setUploading(false)
+      if (uploadRef.current) uploadRef.current.value = ''
+    }
   }
 
   const wordCount = [data.title, data.objective, data.additionalNotes]
@@ -129,17 +202,38 @@ export function BriefNode({ id, data, selected }: NodeProps<BriefNodeType>) {
           {!disabled && (
             <div className="flex gap-2 px-4 pt-3.5 pb-1">
               {isEmpty ? (
-                <button
-                  type="button"
-                  onClick={() => setGeneratorMode('generate')}
-                  className={cn(
-                    'nodrag flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-[12px] font-medium',
-                    'bg-primary text-primary-foreground hover:opacity-90 transition-opacity',
-                  )}
-                >
-                  <WandSparkles className="size-3.5" />
-                  Generate Brief from idea
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setGeneratorMode('generate')}
+                    className={cn(
+                      'nodrag flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-[12px] font-medium',
+                      'bg-primary text-primary-foreground hover:opacity-90 transition-opacity',
+                    )}
+                  >
+                    <WandSparkles className="size-3.5" />
+                    Generate Brief from idea
+                  </button>
+                  {/* Phase 9 — upload draft */}
+                  <label className={cn(
+                    'nodrag flex items-center justify-center gap-1.5 rounded-xl border border-white/[0.09] px-3 py-2 text-[12px] text-muted-foreground',
+                    'cursor-pointer hover:bg-white/[0.06] hover:text-foreground transition-colors',
+                    uploading && 'pointer-events-none opacity-50',
+                  )} title="Upload draft doc (.txt, .md, .pdf)">
+                    <Upload className="size-3.5" />
+                    <input
+                      ref={uploadRef}
+                      type="file"
+                      accept=".txt,.md,.pdf,.doc,.docx"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) void handleUpload(file)
+                      }}
+                    />
+                    {uploading ? 'Reading…' : 'Upload'}
+                  </label>
+                </>
               ) : (
                 <>
                   {isPartial && (
@@ -160,8 +254,45 @@ export function BriefNode({ id, data, selected }: NodeProps<BriefNodeType>) {
                     <RefreshCw className="size-3" />
                     Improve Brief
                   </button>
+                  {/* Phase 9 — upload draft (also available when partial) */}
+                  <label className={cn(
+                    'nodrag flex items-center justify-center gap-1 rounded-xl border border-white/[0.09] px-2.5 py-1.5 text-[11.5px] text-muted-foreground',
+                    'cursor-pointer hover:bg-white/[0.06] hover:text-foreground transition-colors',
+                    uploading && 'pointer-events-none opacity-50',
+                  )} title="Upload draft doc (.txt, .md, .pdf)">
+                    <Upload className="size-3" />
+                    <input
+                      ref={uploadRef}
+                      type="file"
+                      accept=".txt,.md,.pdf,.doc,.docx"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) void handleUpload(file)
+                      }}
+                    />
+                    {uploading ? '…' : 'Upload'}
+                  </label>
                 </>
               )}
+            </div>
+          )}
+
+          {/* Phase 9 — upload error */}
+          {uploadError && (
+            <div className="mx-4 mt-1 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-2.5 py-2">
+              <AlertTriangle className="mt-0.5 size-3 shrink-0 text-destructive" />
+              <p className="text-[10.5px] text-destructive/90">{uploadError}</p>
+            </div>
+          )}
+
+          {/* Phase 9 — source file provenance badge */}
+          {data.sourceFile && !uploadError && (
+            <div className="mx-4 mt-1 flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-black/20 px-2.5 py-1.5">
+              <FileText className="size-3 shrink-0 text-muted-foreground/60" />
+              <span className="truncate text-[10.5px] text-muted-foreground/70">
+                Extracted from <span className="text-foreground/70">{data.sourceFile}</span>
+              </span>
             </div>
           )}
 
@@ -189,7 +320,9 @@ export function BriefNode({ id, data, selected }: NodeProps<BriefNodeType>) {
                 disabled={disabled}
                 onChange={(e) => set('title', e.target.value)}
                 placeholder="e.g. LearnWave — Series Launch"
-                className={cn(fieldClass, assumedFields.includes('title') && 'border-warning/30')}
+                aria-required="true"
+                aria-invalid={validationErrors.some((e) => e.includes('Title'))}
+                className={cn(fieldClass, assumedFields.includes('title') && 'border-warning/30', validationErrors.some((e) => e.includes('Title')) && 'border-destructive/50')}
               />
             </label>
 
@@ -202,7 +335,9 @@ export function BriefNode({ id, data, selected }: NodeProps<BriefNodeType>) {
                 onChange={(e) => set('objective', e.target.value)}
                 placeholder="What should this script achieve?"
                 rows={2}
-                className={cn(fieldClass, 'scroll-slim resize-none', assumedFields.includes('objective') && 'border-warning/30')}
+                aria-required="true"
+                aria-invalid={validationErrors.some((e) => e.includes('Objective'))}
+                className={cn(fieldClass, 'scroll-slim resize-none', assumedFields.includes('objective') && 'border-warning/30', validationErrors.some((e) => e.includes('Objective')) && 'border-destructive/50')}
               />
             </label>
 
@@ -225,7 +360,9 @@ export function BriefNode({ id, data, selected }: NodeProps<BriefNodeType>) {
                   disabled={disabled}
                   onChange={(e) => set('duration', e.target.value)}
                   placeholder="e.g. 90s, 2 min"
-                  className={cn(fieldClass, assumedFields.includes('duration') && 'border-warning/30')}
+                  aria-required="true"
+                  aria-invalid={validationErrors.some((e) => e.includes('Duration'))}
+                  className={cn(fieldClass, assumedFields.includes('duration') && 'border-warning/30', validationErrors.some((e) => e.includes('Duration')) && 'border-destructive/50')}
                 />
               </label>
             </div>
@@ -310,6 +447,17 @@ export function BriefNode({ id, data, selected }: NodeProps<BriefNodeType>) {
           {/* ── Confirm Brief gate ── */}
           {!disabled && !isEmpty && (
             <div className="px-4 pb-3.5 pt-2">
+              {/* Validation errors */}
+              {validationErrors.length > 0 && (
+                <div className="mb-2 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-2.5 py-2" role="alert">
+                  <AlertTriangle className="mt-0.5 size-3 shrink-0 text-destructive" />
+                  <ul className="space-y-0.5">
+                    {validationErrors.map((e) => (
+                      <li key={e} className="text-[10.5px] text-destructive/90">{e}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               {confirmed ? (
                 <div className="flex items-center justify-between rounded-xl border border-success/25 bg-success/10 px-3 py-2">
                   <span className="flex items-center gap-1.5 text-[11.5px] font-medium text-success">

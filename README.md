@@ -26,6 +26,7 @@ Most AI writing tools produce a single block of text that's hard to partially ed
 - **Skill-based pipelines** — choose a scriptwriting "skill" and the app generates the matching set of nodes:
   - **Standard Script** — Hook → Scenes/Beats → Dialogue/Narration → Visual Directions → CTA
   - **Storyline Auteur Script** — a 5-stage funnel (Stageplay → Screenplay → Technical Screenplay → Production Summary → Auteur Script) optimized for generative video continuity
+  - **Series Script Structure** — Series Hook → Episode Outline → Act Beat → Series Visual Notes → Episode Close; designed for episodic drama and long-form series with multi-episode continuity planning
 - **Per-node regeneration** — regenerate any single node (e.g. just the Hook) while the full brief, key facts, and locked/upstream content are preserved as context.
 - **Lock / Edit / Approve controls** — lock strong sections so they're never overwritten, edit inline, and mark nodes as approved.
 - **Continuity & fact protection** — key facts from the brief are injected into every generation call, plus a basic Continuity Checker node flags missing facts or inconsistencies.
@@ -37,8 +38,8 @@ Most AI writing tools produce a single block of text that's hard to partially ed
 ## How It Works
 
 1. Sign in with **Continue with ChatGPT**.
-2. Fill out the **Brief Intake** node: topic, objective, audience, platform(s), duration, tone, and key facts.
-3. Pick a **Skill** (Standard Script or Storyline Auteur Script).
+2. Fill out the **Brief Intake** node: topic, objective, audience, platform(s), duration, tone, and key facts. You can also upload a draft document (`.txt`, `.md`, or `.pdf`) to extract fields automatically — inferred fields are flagged for review before you confirm.
+3. Pick a **Skill** (Standard Script, Storyline Auteur Script, or Series Script Structure).
 4. ScriptFlora generates the corresponding node pipeline on the canvas.
 5. Review, edit, lock, and regenerate individual nodes as needed.
 6. Optionally run the **Continuity Checker**.
@@ -81,6 +82,18 @@ Create a `.env.local` file and configure the Login with ChatGPT integration, at 
 LWC_SECRET=your-stable-secret
 ```
 
+Optional variables for media generation:
+
+```bash
+# Phase 3 — Runway video generation (simulated when absent)
+RUNWAY_API_KEY=
+
+# Phase 11 — HyperFrames render mode (three modes, chosen automatically)
+HEYGEN_API_KEY=          # HeyGen Cloud render (set this for production)
+HYPERFRAMES_LOCAL=true   # Local CLI render instead of cloud (opt-in; overrides HEYGEN_API_KEY)
+HYPERFRAMES_CLI_BIN=     # Override CLI binary path (default: hyperframes / npx @heygen/hyperframes)
+```
+
 Refer to the [`opencoredev/login-with-chatgpt`](https://github.com/opencoredev/login-with-chatgpt) documentation for the full list of required variables and setup steps.
 
 ### Run the dev server
@@ -120,7 +133,8 @@ See [`PRD.md`](./PRD.md) for the full product spec, data model, and build plan, 
 The current MVP intentionally excludes:
 
 - Real-time multi-user collaboration or cloud project sync
-- Actual video generation
+- HyperFrames node UI (queued for Phase 11; the render route `POST /api/hyperframes/render` and status polling route `GET /api/hyperframes/status?taskId=` are implemented with three modes: **simulated** (no keys — resolves immediately), **HeyGen Cloud** (`HEYGEN_API_KEY` set), **Local CLI** (`HYPERFRAMES_LOCAL=true` — requires `npm install -g @heygen/hyperframes`))
+- Actual video generation (Runway integration exists behind `RUNWAY_API_KEY`; HeyGen HyperFrames packaging requires `HEYGEN_API_KEY`)
 - Advanced React Flow features (grouping, custom edge routing, etc.)
 - Mobile-first responsive design
 - Usage analytics and team workspaces

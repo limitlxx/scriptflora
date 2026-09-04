@@ -6,6 +6,14 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import { SKILL_MANIFESTS } from './flow-types'
+
+/** Phase 8 — pinned skill versions per project. */
+export type PinnedSkill = {
+  skillId: string
+  pinnedVersion: string
+  source: 'builtin' | 'local' | 'marketplace'
+}
 
 export type Project = {
   id: string
@@ -13,6 +21,9 @@ export type Project = {
   type: string
   nodeCount: number
   updatedAt: number
+  /** Phase 8 — skill versions active when this project was created/last updated.
+   *  Updates must not silently change old projects. */
+  installedSkills?: PinnedSkill[]
 }
 
 const PROJECTS_KEY = 'sf:projects'
@@ -37,12 +48,19 @@ export function generateProjectId() {
 }
 
 export function createProject(name: string, type: string): Project {
+  // Phase 8: pin current built-in skill versions at project creation
+  const installedSkills: PinnedSkill[] = Object.values(SKILL_MANIFESTS).map((m) => ({
+    skillId: m.skillId,
+    pinnedVersion: m.version,
+    source: m.source,
+  }))
   const project: Project = {
     id: generateProjectId(),
     name: name.trim(),
     type,
     nodeCount: 0,
     updatedAt: Date.now(),
+    installedSkills,
   }
   const projects = readProjects()
   writeProjects([project, ...projects])
@@ -109,4 +127,84 @@ export function saveProjectGraph(projectId: string, nodes: unknown[], edges: unk
   if (typeof window === 'undefined') return
   localStorage.setItem(`sf:nodes:${projectId}`, JSON.stringify(nodes))
   localStorage.setItem(`sf:edges:${projectId}`, JSON.stringify(edges))
+}
+
+/**
+ * Phase 8 — pin a skill version on an existing project.
+ * Idempotent: replaces the existing entry for that skillId.
+ */
+export function pinSkillOnProject(projectId: string, skill: PinnedSkill) {
+  const projects = readProjects().map((p) => {
+    if (p.id !== projectId) return p
+    const others = (p.installedSkills ?? []).filter((s) => s.skillId !== skill.skillId)
+    return { ...p, installedSkills: [...others, skill], updatedAt: Date.now() }
+  })
+  writeProjects(projects)
+}
+
+/* ------------------------------------------------------------------ */
+/* Phase 6 — Series / episode memory (cross-project persistence)      */
+/* ------------------------------------------------------------------ */
+
+const SERIES_KEY_PREFIX = 'sf:series:'
+
+export type EpisodeMemoryRecord = {
+  episodeNumber: number
+  episodeTitle: string
+  projectId: string             // which ScriptFlora project this episode lives in
+  characterSnapshots: Array<{
+    characterId: string
+    characterName: string
+    exitState: string
+    entryState: string
+    wardrobeAtEnd: string
+  }>
+  revealedFacts: string
+  openThreads: string
+  resolvedThreads: string
+  savedAt: string               // ISO timestamp
+}
+
+export type SeriesMemory = {
+  seriesId: string
+  seriesTitle: string
+  episodes: EpisodeMemoryRecord[]
+  lastUpdated: string
+}
+
+function seriesKey(seriesId: string) { return `${SERIES_KEY_PREFIX}${seriesId}` }
+
+export function loadSeriesMemory(seriesId: string): SeriesMemory | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = localStorage.getItem(seriesKey(seriesId))
+    return raw ? (JSON.parse(raw) as SeriesMemory) : null
+  } catch {
+    return null
+  }
+}
+
+export function saveEpisodeMemory(seriesId: string, seriesTitle: string, record: EpisodeMemoryRecord): void {
+  if (typeof window === 'undefined') return
+  const existing = loadSeriesMemory(seriesId) ?? { seriesId, seriesTitle, episodes: [], lastUpdated: '' }
+  const others = existing.episodes.filter((e) => e.episodeNumber !== record.episodeNumber)
+  const updated: SeriesMemory = {
+    ...existing,
+    seriesTitle,
+    episodes: [...others, record].sort((a, b) => a.episodeNumber - b.episodeNumber),
+    lastUpdated: new Date().toISOString(),
+  }
+  localStorage.setItem(seriesKey(seriesId), JSON.stringify(updated))
+  window.dispatchEvent(new CustomEvent('sf:series:change', { detail: { seriesId } }))
+}
+
+export function getEpisodeHandoff(seriesId: string, fromEpisode: number): EpisodeMemoryRecord | null {
+  return loadSeriesMemory(seriesId)?.episodes.find((e) => e.episodeNumber === fromEpisode) ?? null
+}
+
+export function listSeriesIds(): string[] {
+  if (typeof window === 'undefined') return []
+  return Object.keys(localStorage)
+    .filter((k) => k.startsWith(SERIES_KEY_PREFIX))
+    .map((k) => k.slice(SERIES_KEY_PREFIX.length))
 }

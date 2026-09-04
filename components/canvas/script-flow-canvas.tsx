@@ -17,6 +17,8 @@ import {
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CONTENT_KIND_META,
+  CONTENT_NODE_CONTRACTS,
+  SKILL_MANIFESTS,
   type BriefNodeData,
   type ContentKind,
   type ContentNodeData,
@@ -35,6 +37,25 @@ import { ContentNode } from '@/components/nodes/content-node'
 import { ContinuityNode } from '@/components/nodes/continuity-node'
 import { OutputNode } from '@/components/nodes/output-node'
 import { ExportNode } from '@/components/nodes/export-node'
+import { CharacterBibleNode } from '@/components/nodes/character-bible-node'
+import { StyleLockNode } from '@/components/nodes/style-lock-node'
+import { ContinuityLogNode } from '@/components/nodes/continuity-log-node'
+import { ShotListNode } from '@/components/nodes/shot-list-node'
+import { StoryboardNode } from '@/components/nodes/storyboard-node'
+import { SequenceNode } from '@/components/nodes/sequence-node'
+import { GenerateShotNode } from '@/components/nodes/generate-shot-node'
+import { ResultNode } from '@/components/nodes/result-node'
+import { CheckpointNode } from '@/components/nodes/checkpoint-node'
+import { TimelineNode } from '@/components/nodes/timeline-node'
+import { ExportPackageNode } from '@/components/nodes/export-package-node'
+import { BatchPlannerNode } from '@/components/nodes/batch-planner-node'
+import { AutopilotDashboardNode } from '@/components/nodes/autopilot-dashboard-node'
+import { EpisodeMemoryNode } from '@/components/nodes/episode-memory-node'
+import { SeriesArcNode } from '@/components/nodes/series-arc-node'
+import { ProjectPackNode } from '@/components/nodes/project-pack-node'
+import { SocialVariantsNode } from '@/components/nodes/social-variants-node'
+import { TeamWorkspaceNode } from '@/components/nodes/team-workspace-node'
+import { HyperFramesNode } from '@/components/nodes/hyperframes-node' 
 import { TopBar, type GenerateState, type GenerationSettings } from './top-bar'
 import { CanvasControls, type CanvasMode } from './canvas-controls'
 import { AddNodeMenu, type AddNodeRequest } from './add-node-menu'
@@ -49,6 +70,25 @@ const nodeTypes: NodeTypes = {
   continuity: ContinuityNode,
   output: OutputNode,
   export: ExportNode,
+  'character-bible': CharacterBibleNode,
+  'style-lock': StyleLockNode,
+  'continuity-log': ContinuityLogNode,
+  'shot-list': ShotListNode,
+  'storyboard': StoryboardNode,
+  'sequence': SequenceNode,
+  'generate-shot': GenerateShotNode,
+  'result': ResultNode,
+  'checkpoint': CheckpointNode,
+  'timeline': TimelineNode,
+  'export-package': ExportPackageNode,
+  'batch-planner': BatchPlannerNode,
+  'autopilot-dashboard': AutopilotDashboardNode,
+  'episode-memory': EpisodeMemoryNode,
+  'series-arc': SeriesArcNode,
+  'project-pack': ProjectPackNode,
+  'social-variants': SocialVariantsNode,
+  'team-workspace': TeamWorkspaceNode,
+  'hyperframes': HyperFramesNode,
 }
 
 const MINIMAP_COLOR: Record<string, string> = {
@@ -58,6 +98,25 @@ const MINIMAP_COLOR: Record<string, string> = {
   continuity: 'oklch(0.5 0.09 296)',
   output: 'oklch(0.5 0.09 296)',
   export: 'oklch(0.6 0.13 296)',
+  'character-bible': 'oklch(0.48 0.11 30)',
+  'style-lock': 'oklch(0.48 0.09 200)',
+  'continuity-log': 'oklch(0.45 0.09 260)',
+  'shot-list': 'oklch(0.44 0.10 50)',
+  'storyboard': 'oklch(0.44 0.08 60)',
+  'sequence': 'oklch(0.42 0.08 280)',
+  'generate-shot': 'oklch(0.46 0.13 296)',
+  'result': 'oklch(0.44 0.10 296)',
+  'checkpoint': 'oklch(0.50 0.12 140)',
+  'timeline': 'oklch(0.44 0.09 30)',
+  'export-package': 'oklch(0.46 0.11 60)',
+  'batch-planner': 'oklch(0.46 0.12 296)',
+  'autopilot-dashboard': 'oklch(0.44 0.10 140)',
+  'episode-memory': 'oklch(0.44 0.10 220)',
+  'series-arc': 'oklch(0.46 0.12 250)',
+  'project-pack': 'oklch(0.44 0.10 30)',
+  'social-variants': 'oklch(0.46 0.12 180)',
+  'team-workspace': 'oklch(0.46 0.10 240)',
+  'hyperframes': 'oklch(0.48 0.14 296)',
 }
 
 let idCounter = 100
@@ -77,17 +136,18 @@ function buildNode(request: AddNodeRequest, position: { x: number; y: number }):
     case 'brief':
       return {
         id: nextId('brief'), type: 'brief', position,
-        data: { title: '', objective: '', audience: '', platforms: [], duration: '', tone: 'cinematic', keyFacts: [], additionalNotes: '', status: 'empty' },
+        data: { title: '', objective: '', audience: '', platforms: [], duration: '', tone: 'cinematic', keyFacts: [], additionalNotes: '', status: 'empty', origin: 'core' },
       }
     case 'skill':
-      return { id: nextId('skill'), type: 'skill', position, data: { selected: request.skillId ?? null, skillMarkdown: request.skillMarkdown ?? '' } }
+      return { id: nextId('skill'), type: 'skill', position, data: { selected: request.skillId ?? null, skillMarkdown: request.skillMarkdown ?? '', origin: 'core' } }
     case 'continuity':
-      return { id: nextId('continuity'), type: 'continuity', position, data: { status: 'empty', score: 0, checkedAt: null, issues: [] } }
+      return { id: nextId('continuity'), type: 'continuity', position, data: { status: 'empty', score: 0, checkedAt: null, issues: [], origin: 'core' } }
     case 'output':
       return {
         id: nextId('output'), type: 'output', position,
         data: {
           status: 'empty',
+          origin: 'core' as const,
           formats: [
             { id: 'screenplay', label: 'Screenplay', description: 'Industry-standard scene formatting', enabled: true },
             { id: 'shotlist', label: 'Shot list', description: 'One row per shot, with lens notes', enabled: false },
@@ -98,13 +158,105 @@ function buildNode(request: AddNodeRequest, position: { x: number; y: number }):
         },
       }
     case 'export':
-      return { id: nextId('export'), type: 'export', position, data: { status: 'empty', format: 'md', includeNotes: false, filename: 'untitled-script' } }
+      return { id: nextId('export'), type: 'export', position, data: { status: 'empty', format: 'md', includeNotes: false, filename: 'untitled-script', origin: 'core' } }
+    case 'character-bible':
+      return { id: nextId('character-bible'), type: 'character-bible', position, data: { status: 'empty', characters: [], origin: 'core' } }
+    case 'style-lock':
+      return {
+        id: nextId('style-lock'), type: 'style-lock', position,
+        data: { status: 'empty', medium: 'live-action', visualRules: '', locations: '', hardConstraints: '', origin: 'core' },
+      }
+    case 'continuity-log':
+      return { id: nextId('continuity-log'), type: 'continuity-log', position, data: { status: 'empty', entries: [], origin: 'core' } }
+    case 'shot-list':
+      return { id: nextId('shot-list'), type: 'shot-list', position, data: { status: 'empty', sourceSceneLabel: '', shots: [], origin: 'core' } }
+    case 'storyboard':
+      return { id: nextId('storyboard'), type: 'storyboard', position, data: { status: 'empty', shotId: '', shotLabel: '', imageUrl: undefined, notes: '', origin: 'core' } }
+    case 'sequence':
+      return { id: nextId('sequence'), type: 'sequence', position, data: { status: 'empty', items: [], origin: 'core' } }
+    case 'generate-shot':
+      return {
+        id: nextId('generate-shot'), type: 'generate-shot', position,
+        data: { status: 'empty', priority: 'balanced', isEditOfExistingClip: false, needsNativeAudio: false, isPerformanceShot: false, origin: 'core' },
+      }
+    case 'result':
+      return { id: nextId('result'), type: 'result', position, data: { status: 'empty', resultStatus: 'generated', origin: 'core' } }
+    case 'checkpoint':
+      return {
+        id: nextId('checkpoint'), type: 'checkpoint', position,
+        data: { status: 'empty', label: '', requiredApprovals: 1, currentApprovals: 0, gateOpen: false, notes: '', origin: 'core' },
+      }
+    case 'timeline':
+      return { id: nextId('timeline'), type: 'timeline', position, data: { status: 'empty', clips: [], totalDuration: 0, playing: false, origin: 'core' } }
+    case 'export-package':
+      return {
+        id: nextId('export-package'), type: 'export-package', position,
+        data: {
+          status: 'empty', filename: '', nleTarget: 'generic',
+          includeScript: true, includeCharacterBible: true,
+          includeContinuityLog: true, includeNleMarkers: true,
+          origin: 'core',
+        },
+      }
+    case 'batch-planner':
+      return {
+        id: nextId('batch-planner'), type: 'batch-planner', position,
+        data: { status: 'empty', batchSize: 5, items: [], planApproved: false, directorRationale: '', origin: 'core' },
+      }
+    case 'autopilot-dashboard':
+      return {
+        id: nextId('autopilot-dashboard'), type: 'autopilot-dashboard', position,
+        data: {
+          status: 'empty', autopilotStatus: 'idle', checkpointFrequency: 'every-5-shots',
+          totalShots: 0, completedShots: 0, approvedShots: 0, rejectedShots: 0,
+          totalCostEstimate: 0, costPerBatch: 0, openIssues: 0, currentBatchLabel: '',
+          origin: 'core',
+        },
+      }
+    case 'episode-memory':
+      return {
+        id: nextId('episode-memory'), type: 'episode-memory', position,
+        data: {
+          status: 'empty', episodeNumber: 1, episodeTitle: '',
+          characterSnapshots: [], revealedFacts: '', openThreads: '',
+          resolvedThreads: '', nextEpisodeNotes: '', origin: 'core',
+        },
+      }
+    case 'series-arc':
+      return {
+        id: nextId('series-arc'), type: 'series-arc', position,
+        data: {
+          status: 'empty', seriesTitle: '', totalEpisodes: 1, currentEpisode: 1,
+          beats: [], overarchingThemes: '', characterArcs: '', origin: 'core',
+        },
+      }
+    case 'project-pack':
+      return { id: nextId('project-pack'), type: 'project-pack', position, data: { status: 'empty', selectedPack: null, origin: 'core' } }
+    case 'social-variants':
+      return {
+        id: nextId('social-variants'), type: 'social-variants', position,
+        data: { status: 'empty', variants: [], publishSchedule: '', thumbnailPrompt: '', origin: 'core' },
+      }
+    case 'team-workspace':
+      return {
+        id: nextId('team-workspace'), type: 'team-workspace', position,
+        data: { status: 'empty', workspaceName: '', brandKitNotes: '', approvalRequired: false, comments: [], origin: 'core' },
+      }
+    case 'hyperframes':
+      return {
+        id: nextId('hyperframes'), type: 'hyperframes', position,
+        data: {
+          status: 'empty', hfStatus: 'idle', templateId: 'explainer_16x9',
+          aspectRatios: ['16:9'], variables: {}, clipMappings: [], origin: 'core',
+        },
+      }
     case 'content':
     default: {
       const contentKind: ContentKind = kind ?? 'scene'
+      // User-manually-added content nodes have no skill provenance
       return {
         id: nextId('content'), type: 'content', position,
-        data: { kind: contentKind, label: CONTENT_KIND_META[contentKind].label, content: '', prompt: '', progress: 0, status: 'empty', tokens: 0, stageKey: '' },
+        data: { kind: contentKind, label: CONTENT_KIND_META[contentKind].label, content: '', prompt: '', progress: 0, status: 'empty', tokens: 0, stageKey: '', origin: 'skill' },
       }
     }
   }
@@ -125,6 +277,13 @@ function reconcile(plan: GenerationPlan, skillNode: ScriptFloraNode, allNodes: S
   const existing = allNodes.filter((n) => n.type === 'content' && allEdges.some((e) => e.source === skillNode.id && e.target === n.id))
   const existingByKey = new Map(existing.filter((n) => (n.data as ContentNodeData).stageKey).map((n) => [(n.data as ContentNodeData).stageKey!, n]))
 
+  // Phase 8: resolve the skill manifest so we can stamp provenance
+  const selectedSkillId = (skillNode.data as { selected: SkillId | null }).selected ?? 'standard'
+  const manifest = SKILL_MANIFESTS[selectedSkillId]
+  const provenanceBase = manifest
+    ? { skillId: manifest.skillId, skillVersion: manifest.version, publisherId: manifest.publisherId }
+    : { skillId: selectedSkillId, skillVersion: '0.0.0', publisherId: 'local' }
+
   const newNodes: ScriptFloraNode[] = []
 
   for (const [i, stage] of plan.stages.entries()) {
@@ -135,13 +294,32 @@ function reconcile(plan: GenerationPlan, skillNode: ScriptFloraNode, allNodes: S
       ;(match.data as ContentNodeData).content = stage.content
       ;(match.data as ContentNodeData).status = 'draft'
       ;(match.data as ContentNodeData).label = stage.label
+      // Back-fill provenance on existing nodes that predate Phase 8
+      if (!d.provenance) {
+        ;(match.data as ContentNodeData).origin = 'skill'
+        ;(match.data as ContentNodeData).provenance = { ...provenanceBase, skillNodeKey: stage.kind }
+        ;(match.data as ContentNodeData).contract = CONTENT_NODE_CONTRACTS[stage.kind as ContentKind]
+      }
     } else {
       const col = Math.floor(i / 6)
       const row = i % 6
       newNodes.push({
         id: nextId('content'), type: 'content',
         position: { x: skillNode.position.x + 420 + col * 380, y: skillNode.position.y - 100 + row * 230 },
-        data: { kind: stage.kind as ContentKind, label: stage.label, content: stage.content, status: 'draft', stageKey: stage.stageKey, index: stage.index, tokens: Math.round(stage.content.length * 1.4), progress: 100 },
+        data: {
+          kind: stage.kind as ContentKind,
+          label: stage.label,
+          content: stage.content,
+          status: 'draft',
+          stageKey: stage.stageKey,
+          index: stage.index,
+          tokens: Math.round(stage.content.length * 1.4),
+          progress: 100,
+          // Phase 8 fields
+          origin: 'skill',
+          provenance: { ...provenanceBase, skillNodeKey: stage.kind },
+          contract: CONTENT_NODE_CONTRACTS[stage.kind as ContentKind],
+        },
       })
     }
   }
@@ -161,8 +339,6 @@ function reconcile(plan: GenerationPlan, skillNode: ScriptFloraNode, allNodes: S
   }))
 
   // ── Auto-connect downstream nodes ────────────────────────────────────────
-  // Continuity and output nodes need ALL content nodes as inputs so they can
-  // read every stage. Export connects from continuity/output (or last content).
   const allContentNodeIds = [...existing.map((n) => n.id), ...newNodes.map((n) => n.id)]
   const autoEdges: ScriptFloraEdge[] = []
 
@@ -186,7 +362,6 @@ function reconcile(plan: GenerationPlan, skillNode: ScriptFloraNode, allNodes: S
     for (const on of outputNodes) addEdgeIfMissing(contentId, on.id)
   }
 
-  // Export receives from continuity + output (or last content if neither exist)
   for (const en of exportNodes) {
     const upstreamNodes = [...continuityNodes, ...outputNodes]
     if (upstreamNodes.length > 0) {
@@ -504,6 +679,53 @@ function Flow({ projectId }: { projectId: string }) {
       return
     }
 
+    // Phase S0: validate skill manifest requires.locks
+    // If the selected skill declares required locks, check the canvas has them.
+    const manifest = SKILL_MANIFESTS[skill]
+    if (manifest?.requires?.locks?.length) {
+      const missingLocks: string[] = []
+      for (const requiredType of manifest.requires.locks) {
+        const node = nodes.find((n) => n.type === requiredType)
+        const isLocked = node?.data && (
+          requiredType === 'character-bible'
+            // Character Bible: at least one character must be locked with a reference image
+            ? (node.data as { characters?: Array<{ status: string; referenceImageUrl?: string }> })
+                .characters?.some((c) => c.status === 'locked' && c.referenceImageUrl)
+            // Other nodes: node itself must be locked
+            : Boolean((node?.data as { locked?: boolean } | undefined)?.locked)
+        )
+        if (!isLocked) missingLocks.push(requiredType)
+      }
+      if (missingLocks.length > 0) {
+        const labels: Record<string, string> = {
+          'character-bible': 'Character Bible (lock at least one character with a reference image)',
+          'style-lock': 'World / Style Lock (lock the style rules)',
+        }
+        const missing = missingLocks
+          .map((t) => labels[t] ?? t)
+          .join('; ')
+        setPreflightMessage(`"${manifest.name}" requires: ${missing}`)
+        setGenerateState('preflight-error')
+        return
+      }
+    }
+
+    // Phase S0: validate skill manifest requires.nodes
+    if (manifest?.requires?.nodes?.length) {
+      const missingNodes = manifest.requires.nodes.filter(
+        (requiredType) => !nodes.some((n) => n.type === requiredType)
+      )
+      if (missingNodes.length > 0) {
+        const labels: Record<string, string> = {
+          'episode-memory': 'Episode Memory node (for multi-episode continuity)',
+        }
+        const missing = missingNodes.map((t) => labels[t] ?? t).join(', ')
+        setPreflightMessage(`"${manifest.name}" works best with: ${missing} — add it or dismiss to continue.`)
+        // ponytail: missing nodes is a soft warning not a hard block (unlike missing locks)
+        // so we don't return here — we surface it but allow generation to proceed
+      }
+    }
+
     setPreflightMessage(undefined)
     setGenerateError(undefined)
     setGenerateState('generating')
@@ -519,6 +741,24 @@ function Flow({ projectId }: { projectId: string }) {
       existingContent: collectExistingContent(skillNode.id, nodes, edges),
     }
 
+    // Phase 1: collect locked Character Bible + Style Lock and inject into request
+    const biblNode = nodes.find((n) => n.type === 'character-bible')
+    const stylNode = nodes.find((n) => n.type === 'style-lock')
+    type ContinuityCtx = { characters?: unknown[]; styleLock?: unknown }
+    const continuityContext: ContinuityCtx = {}
+    if (biblNode?.type === 'character-bible') {
+      const chars = (biblNode.data as { characters?: Array<{ status: string; name: string; role: string; visualDescription: string; wardrobe: string; voiceProfile: unknown }> }).characters ?? []
+      const locked = chars.filter((c) => c.status === 'locked')
+      if (locked.length > 0) continuityContext.characters = locked
+    }
+    if (stylNode?.type === 'style-lock' && stylNode.data.locked) {
+      continuityContext.styleLock = stylNode.data
+    }
+
+    const reqWithContext = Object.keys(continuityContext).length > 0
+      ? { ...req, continuityContext }
+      : req
+
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
@@ -528,7 +768,7 @@ function Flow({ projectId }: { projectId: string }) {
           'x-sf-reasoning-effort': settings.reasoning,
           ...(settings.fast ? { 'x-sf-service-tier': 'fast' } : {}),
         },
-        body: JSON.stringify(req),
+        body: JSON.stringify(reqWithContext),
       })
 
       if (activeGenId.current !== genId) return
@@ -688,7 +928,7 @@ function Flow({ projectId }: { projectId: string }) {
           />
         </ReactFlow>
 
-        <FloatingSidebar onDropNode={handleDropNode} />
+        <FloatingSidebar onDropNode={handleDropNode} projectId={projectId} />
 
         <TopBar
           projectName={projectName}

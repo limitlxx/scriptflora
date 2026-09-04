@@ -2,23 +2,36 @@
 
 import {
   ArrowDownToLine,
+  BookMarked,
   BookOpen,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Clapperboard,
   FileText,
+  Film,
+  Flag,
   FolderKanban,
+  Gauge,
+  Globe,
   Grid2X2,
+  Image,
   Layers,
   MessageCircle,
   Move,
+  Package,
+  Play,
   Plus,
   ScanLine,
+  Scissors,
+  Share2,
   ShieldCheck,
   Sparkles,
   Target,
+  Tv,
   Upload,
   Users,
+  Video,
   WandSparkles,
   Zap,
 } from 'lucide-react'
@@ -27,38 +40,124 @@ import { useRef, useState, useEffect, type DragEvent, type ChangeEvent } from 'r
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/components/auth-context'
 import { loadImportedSkills, saveImportedSkill, deleteImportedSkill, slugify, type ImportedSkill } from '@/lib/imported-skills'
-import type { AddNodeRequest } from './script-flow-canvas'
+import { AssetLibrary } from './asset-library'
+import type { AddNodeRequest } from './add-node-menu'
 
-const library = [
-  { label: 'Brief Intake', icon: FileText, request: { type: 'brief' as const } },
-  { label: 'Skill Selector', icon: Layers, request: { type: 'skill' as const } },
-  { label: 'Hook', icon: Zap, request: { type: 'content' as const, kind: 'hook' as const } },
-  { label: 'Scene', icon: ScanLine, request: { type: 'content' as const, kind: 'scene' as const } },
-  { label: 'Dialogue / Narration', icon: MessageCircle, request: { type: 'content' as const, kind: 'dialogue' as const } },
-  { label: 'Visual Directions', icon: WandSparkles, request: { type: 'content' as const, kind: 'visual' as const } },
-  { label: 'CTA', icon: Target, request: { type: 'content' as const, kind: 'cta' as const } },
-  { label: 'Continuity Checker', icon: ShieldCheck, request: { type: 'continuity' as const } },
-  { label: 'Multi-Format Output', icon: Grid2X2, request: { type: 'output' as const } },
-  { label: 'Export', icon: ArrowDownToLine, request: { type: 'export' as const } },
+// Node library grouped by purpose — each group is independently collapsible
+type NodeItem = {
+  label: string
+  icon: React.ComponentType<{ className?: string }>
+  request: AddNodeRequest
+}
+type NodeGroup = { heading: string; items: NodeItem[] }
+
+const NODE_GROUPS: NodeGroup[] = [
+  {
+    heading: 'Setup',
+    items: [
+      { label: 'Brief Intake',    icon: FileText, request: { type: 'brief' as const } },
+      { label: 'Skill Selector',  icon: Layers,   request: { type: 'skill' as const } },
+    ],
+  },
+  {
+    heading: 'Continuity',
+    items: [
+      { label: 'Character Bible',    icon: Users,      request: { type: 'character-bible' as const } },
+      { label: 'World / Style Lock', icon: Globe,      request: { type: 'style-lock' as const } },
+      { label: 'Continuity Log',     icon: BookMarked, request: { type: 'continuity-log' as const } },
+      { label: 'Continuity Checker', icon: ShieldCheck, request: { type: 'continuity' as const } },
+    ],
+  },
+  {
+    heading: 'Script stages',
+    items: [
+      { label: 'Hook',                icon: Zap,          request: { type: 'content' as const, kind: 'hook' as const } },
+      { label: 'Scene',               icon: ScanLine,     request: { type: 'content' as const, kind: 'scene' as const } },
+      { label: 'Dialogue / Narration',icon: MessageCircle,request: { type: 'content' as const, kind: 'dialogue' as const } },
+      { label: 'Visual Directions',   icon: WandSparkles, request: { type: 'content' as const, kind: 'visual' as const } },
+      { label: 'CTA',                 icon: Target,       request: { type: 'content' as const, kind: 'cta' as const } },
+    ],
+  },
+  {
+    heading: 'Shot layer',
+    items: [
+      { label: 'Shot List',        icon: Clapperboard, request: { type: 'shot-list' as const } },
+      { label: 'Storyboard Frame', icon: Image,        request: { type: 'storyboard' as const } },
+      { label: 'Sequence',         icon: Film,         request: { type: 'sequence' as const } },
+    ],
+  },
+  {
+    heading: 'Media generation',
+    items: [
+      { label: 'Generate Shot',   icon: Play,  request: { type: 'generate-shot' as const } },
+      { label: 'Result',          icon: Video, request: { type: 'result' as const } },
+      { label: 'Checkpoint',      icon: Flag,  request: { type: 'checkpoint' as const } },
+    ],
+  },
+  {
+    heading: 'Assembly & export',
+    items: [
+      { label: 'Timeline',          icon: Scissors,        request: { type: 'timeline' as const } },
+      { label: 'HyperFrames',       icon: Film,            request: { type: 'hyperframes' as const } },
+      { label: 'Export Package',    icon: Package,         request: { type: 'export-package' as const } },
+      { label: 'Multi-Format Output',icon: Grid2X2,        request: { type: 'output' as const } },
+      { label: 'Export',            icon: ArrowDownToLine, request: { type: 'export' as const } },
+    ],
+  },
+  {
+    heading: 'Autopilot',
+    items: [
+      { label: 'Batch Planner',        icon: Sparkles, request: { type: 'batch-planner' as const } },
+      { label: 'Autopilot Dashboard',  icon: Gauge,    request: { type: 'autopilot-dashboard' as const } },
+    ],
+  },
+  {
+    heading: 'Series memory',
+    items: [
+      { label: 'Episode Memory', icon: BookOpen, request: { type: 'episode-memory' as const } },
+      { label: 'Series Arc',     icon: Tv,       request: { type: 'series-arc' as const } },
+    ],
+  },
+  {
+    heading: 'Packs & team',
+    items: [
+      { label: 'Project Pack',    icon: Clapperboard, request: { type: 'project-pack' as const } },
+      { label: 'Social Variants', icon: Share2,       request: { type: 'social-variants' as const } },
+      { label: 'Team Workspace',  icon: Users,        request: { type: 'team-workspace' as const } },
+    ],
+  },
 ]
 
 // Nav items: [label, icon, href | null (button)]
-// 'Docs' → /docs, 'Projects' → /projects, 'Techniques' → accordion toggle
+// 'Docs' → /docs, 'Projects' → /projects, 'Techniques' → accordion toggle, 'Assets' → panel toggle
 const NAV_ITEMS = [
   ['Docs', BookOpen, '/docs'],
   ['Projects', FolderKanban, '/projects'],
   ['Techniques', WandSparkles, null],
-  // ['Community', Users, null],
+  ['Assets', Package, null],
 ] as const
 
 export function FloatingSidebar({
   onDropNode,
+  projectId,
 }: {
   onDropNode: (request: AddNodeRequest, event: DragEvent | React.MouseEvent) => void
+  projectId: string
 }) {
   const [collapsed, setCollapsed] = useState(false)
   const [active, setActive] = useState('Techniques')
   const [skillsOpen, setSkillsOpen] = useState(true)
+  const [assetsOpen, setAssetsOpen] = useState(false)
+  // Phase 10: per-group open state for node library — default first two groups open
+  const [openGroups, setOpenGroups] = useState<Set<string>>(
+    () => new Set(['Setup', 'Continuity'])
+  )
+  const toggleGroup = (heading: string) =>
+    setOpenGroups((prev) => {
+      const next = new Set(prev)
+      next.has(heading) ? next.delete(heading) : next.add(heading)
+      return next
+    })
   const [importedSkills, setImportedSkills] = useState<ImportedSkill[]>([])
   const importRef = useRef<HTMLInputElement>(null)
   const auth = useAuth()
@@ -137,7 +236,7 @@ export function FloatingSidebar({
         </button>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-2">
+      <div className="flex min-h-0 flex-1 flex-col gap-5 scroll-slim overflow-y-auto p-2">
         {/* Quick actions */}
         <div className="flex flex-col gap-1">
           <button
@@ -151,7 +250,7 @@ export function FloatingSidebar({
             <Sparkles className="size-3.5 shrink-0 text-primary/80" />
             {!collapsed && (
               <>
-                <span className="flex-1 text-left">Script Studio</span>
+                <span className="flex-1 text-left">ScriptFlora Studio</span>
                 <span className="rounded-full bg-emerald-400/10 px-1.5 py-0.5 text-[9px] text-emerald-300">
                   Coming Soon
                 </span>
@@ -201,6 +300,7 @@ export function FloatingSidebar({
                     onClick={() => {
                       setActive(label)
                       if (label === 'Techniques') setSkillsOpen((v) => !v)
+                      if (label === 'Assets') setAssetsOpen((v) => !v)
                     }}
                     className={baseClass}
                     title={label}
@@ -212,6 +312,11 @@ export function FloatingSidebar({
                         {label === 'Techniques' && (
                           <ChevronDown
                             className={cn('size-3 transition-transform', skillsOpen && 'rotate-180')}
+                          />
+                        )}
+                        {label === 'Assets' && (
+                          <ChevronDown
+                            className={cn('size-3 transition-transform', assetsOpen && 'rotate-180')}
                           />
                         )}
                       </>
@@ -283,38 +388,71 @@ export function FloatingSidebar({
                     </button>
                   </div>
                 )}
+
+                {/* Assets sub-panel */}
+                {label === 'Assets' && assetsOpen && !collapsed && (
+                  <div className="mt-1 border-l border-white/[0.08] pb-1 pl-4">
+                    <AssetLibrary projectId={projectId} />
+                  </div>
+                )}
               </div>
             )
           })}
         </nav>
 
-        {/* Node library */}
-        <section className="flex min-h-0 flex-1 flex-col gap-1" aria-label="Node library">
+        {/* Node library — grouped and collapsible */}
+        <section className="flex min-h-0 flex-1 flex-col scroll-slim overflow-y-auto" aria-label="Node library">
           {!collapsed && (
             <div className="flex items-center justify-between px-2.5 pb-1">
-              <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">
-                Nodes
-              </span>
+              <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">Nodes</span>
               <Move className="size-3 text-muted-foreground/50" />
             </div>
           )}
-          {library.map(({ label, icon: Icon, request }) => (
-            <button
-              key={label}
-              type="button"
-              draggable
-              onDragStart={(e) => startDrag(e, request)}
-              onClick={(e) => onDropNode(request, e)}
-              className={cn(
-                'flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-[11px] text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground',
-                collapsed && 'justify-center px-0',
-              )}
-              title={collapsed ? label : 'Drag to canvas'}
-            >
-              <Icon className="size-3.5 shrink-0 text-muted-foreground/80" />
-              {!collapsed && <span className="truncate">{label}</span>}
-            </button>
-          ))}
+
+          {collapsed ? (
+            // Collapsed: flat icon-only list
+            NODE_GROUPS.flatMap((g) => g.items).map(({ label, icon: Icon, request }) => (
+              <button key={label} type="button" draggable
+                onDragStart={(e) => startDrag(e, request)}
+                onClick={(e) => onDropNode(request, e)}
+                title={label}
+                className="flex justify-center py-1.5 text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
+              >
+                <Icon className="size-3.5 shrink-0 text-muted-foreground/80" />
+              </button>
+            ))
+          ) : (
+            NODE_GROUPS.map((group) => {
+              const isOpen = openGroups.has(group.heading)
+              return (
+                <div key={group.heading} className="mb-0.5">
+                  <button type="button" onClick={() => toggleGroup(group.heading)}
+                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 transition-colors hover:bg-white/[0.04]"
+                  >
+                    <span className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/55">
+                      {group.heading}
+                    </span>
+                    <ChevronDown className={cn('size-3 text-muted-foreground/35 transition-transform duration-200', isOpen && 'rotate-180')} />
+                  </button>
+                  {isOpen && (
+                    <div className="mb-1 ml-2 flex flex-col gap-0.5 border-l border-white/[0.06] pl-2">
+                      {group.items.map(({ label, icon: Icon, request }) => (
+                        <button key={label} type="button" draggable
+                          onDragStart={(e) => startDrag(e, request)}
+                          onClick={(e) => onDropNode(request, e)}
+                          title="Drag to canvas"
+                          className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
+                        >
+                          <Icon className="size-3.5 shrink-0 text-muted-foreground/70" />
+                          <span className="truncate">{label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
         </section>
       </div>
     </aside>

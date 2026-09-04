@@ -1,7 +1,7 @@
 'use client'
 
 import { type NodeProps } from '@xyflow/react'
-import { ArrowDownToLine, LayoutGrid, Lock, LockOpen, PlayCircle, Trash2 } from 'lucide-react'
+import { ArrowDownToLine, LayoutGrid, Lock, LockOpen, PlayCircle, Trash2, AlertCircle } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
 import type { OutputNode as OutputNodeType } from '@/lib/flow-types'
@@ -115,6 +115,7 @@ export function OutputNode({ id, data, selected }: NodeProps<OutputNodeType>) {
   const { update, act } = useNodeActions()
   const [hovered, setHovered] = useState(false)
   const [running, setRunning] = useState(false)
+  const [warning, setWarning] = useState('')
   const disabled = Boolean(data.locked)
   const enabledCount = data.formats.filter((f) => f.enabled).length
 
@@ -130,7 +131,11 @@ export function OutputNode({ id, data, selected }: NodeProps<OutputNodeType>) {
     const contentNodes = nodes.filter(
       (n) => n.type === 'content' && ((n.data as { content?: string }).content ?? '').trim(),
     )
-    if (contentNodes.length === 0) return
+    if (contentNodes.length === 0) {
+      setWarning('No content yet. Generate script stages first.')
+      return
+    }
+    setWarning('')
 
     setRunning(true)
     update(id, { status: 'generating' })
@@ -238,6 +243,16 @@ export function OutputNode({ id, data, selected }: NodeProps<OutputNodeType>) {
                   <><ArrowDownToLine className="size-3.5" />Download {enabledCount} format{enabledCount > 1 ? 's' : ''}</>
                 )}
               </button>
+            </div>
+          </>
+        )}
+
+        {warning && (
+          <>
+            <NodeDivider />
+            <div className="flex items-start gap-2 px-3 py-2.5">
+              <AlertCircle className="mt-0.5 size-3 shrink-0 text-warning" />
+              <p className="text-[10.5px] leading-snug text-warning/90">{warning}</p>
             </div>
           </>
         )}

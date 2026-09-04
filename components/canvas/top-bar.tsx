@@ -108,9 +108,13 @@ export function TopBar({
       {/* centre — generation controls */}
       <div className="flex items-center gap-1.5">
         {hasError && errorMsg && (
-          <span className="hidden items-center gap-1.5 text-[10.5px] text-destructive sm:flex" role="alert">
+          <span
+            className="flex max-w-[200px] items-center gap-1.5 truncate text-[10.5px] text-destructive"
+            role="alert"
+            aria-live="assertive"
+          >
             <AlertCircle className="size-3 shrink-0" />
-            {errorMsg}
+            <span className="truncate">{errorMsg}</span>
           </span>
         )}
 

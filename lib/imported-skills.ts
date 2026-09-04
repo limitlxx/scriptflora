@@ -2,29 +2,44 @@
 
 /**
  * Persists user-imported skill markdown files to localStorage.
- * Keyed by a slug derived from the filename.
+ * Phase 8: now stores version + publisherId so the skill can be treated
+ * as a local SkillManifest with pinnable version on each project.
  */
 
 const LS_KEY = 'sf:imported-skills'
 
 export type ImportedSkill = {
-  id: string       // slug e.g. "custom:my-skill"
-  name: string     // display name
-  markdown: string // full file content
+  id: string         // slug e.g. "custom:my-skill"
+  name: string       // display name
+  markdown: string   // full file content
+  /** Phase 8 provenance */
+  version: string    // always "0.0.0" for local imports until the user sets one
+  publisherId: string // "local" for user-imported skills
 }
 
 export function loadImportedSkills(): ImportedSkill[] {
   if (typeof window === 'undefined') return []
   try {
-    return JSON.parse(localStorage.getItem(LS_KEY) ?? '[]') as ImportedSkill[]
+    const raw = JSON.parse(localStorage.getItem(LS_KEY) ?? '[]') as ImportedSkill[]
+    // Back-fill provenance fields for skills saved before Phase 8
+    return raw.map((s) => ({
+      version: '0.0.0',
+      publisherId: 'local',
+      ...s,
+    }))
   } catch {
     return []
   }
 }
 
-export function saveImportedSkill(skill: ImportedSkill): void {
-  const skills = loadImportedSkills().filter((s) => s.id !== skill.id)
-  localStorage.setItem(LS_KEY, JSON.stringify([...skills, skill]))
+export function saveImportedSkill(skill: Omit<ImportedSkill, 'version' | 'publisherId'> & Partial<Pick<ImportedSkill, 'version' | 'publisherId'>>): void {
+  const full: ImportedSkill = {
+    version: '0.0.0',
+    publisherId: 'local',
+    ...skill,
+  }
+  const skills = loadImportedSkills().filter((s) => s.id !== full.id)
+  localStorage.setItem(LS_KEY, JSON.stringify([...skills, full]))
   window.dispatchEvent(new CustomEvent('sf:skills:change'))
 }
 

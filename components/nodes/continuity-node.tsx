@@ -62,12 +62,21 @@ async function runContinuityCheck(
   }).join('\n\n')
 
   const keyFacts = ((brief?.data?.keyFacts as string[] | undefined) ?? []).filter(Boolean)
+  // Phase 0: pass full brief context so AI can check tone, audience, platform alignment
+  const briefContext = brief ? {
+    title: brief.data.title,
+    objective: brief.data.objective,
+    audience: brief.data.audience,
+    tone: brief.data.tone,
+    platforms: brief.data.platforms,
+    duration: brief.data.duration,
+  } : null
 
   try {
     const res = await fetch('/api/continuity-check', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ script: scriptText, keyFacts }),
+      body: JSON.stringify({ script: scriptText, keyFacts, brief: briefContext }),
     })
 
     if (!res.ok) throw new Error(await res.text())
