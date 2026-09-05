@@ -79,6 +79,9 @@ Bottom sheet with same modes; spotlights still work on canvas.
 - Floating step card near target
 - Ghost node preview before creation
 
+Also make the Coach rail support the same detach/dock behavior (default dock right, can float).
+When Coach is floating, keep step spotlights working on canvas targets.
+
 ---
 
 ## 5. State schema (Coach context)

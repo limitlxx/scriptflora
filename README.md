@@ -91,7 +91,7 @@ RUNWAY_API_KEY=
 # Phase 11 — HyperFrames render mode (three modes, chosen automatically)
 HEYGEN_API_KEY=          # HeyGen Cloud render (set this for production)
 HYPERFRAMES_LOCAL=true   # Local CLI render instead of cloud (opt-in; overrides HEYGEN_API_KEY)
-HYPERFRAMES_CLI_BIN=     # Override CLI binary path (default: hyperframes / npx @heygen/hyperframes)
+HYPERFRAMES_CLI_BIN=     # Override CLI binary path (default: npx hyperframes)
 ```
 
 Refer to the [`opencoredev/login-with-chatgpt`](https://github.com/opencoredev/login-with-chatgpt) documentation for the full list of required variables and setup steps.
@@ -116,8 +116,14 @@ pnpm start
 ```
 scriptflora/
 ├── app/            # Next.js App Router pages and API routes
+│   ├── marketplace/page.tsx  # Phase S3 — Skills Marketplace page (`/marketplace`); hero, trust-tier legend (Official / Verified / Community), and <MarketplaceClient /> for feed + install
 ├── components/     # UI and canvas/node components
+│   ├── marketplace/marketplace-client.tsx  # Client component: feed fetch, search/filter, install actions
 ├── lib/            # Utilities, state store, and AI/generation helpers
+│   ├── skill-studio.ts    # Phase S1 — Skills Studio draft skill store (localStorage, `sf:studio:skills`)
+│   ├── marketplace.ts     # Phase S3 — Marketplace feed types + client helpers (`fetchMarketplaceFeed`, `filterSkills`)
+├── components/skills-studio/  # Skills Studio UI components
+│   ├── skill-list-client.tsx  # Client component: skill list, filter tabs, create/archive/delete actions
 ├── guides/         # Reference guides / internal docs
 ├── public/         # Static assets
 ├── PRD.md          # Product Requirements Document
@@ -132,6 +138,7 @@ See [`PRD.md`](./PRD.md) for the full product spec, data model, and build plan, 
 
 The current MVP intentionally excludes:
 
+- Skills Studio UI (`/app/skills`) — the skill list view (`components/skills-studio/skill-list-client.tsx`) is implemented with filter tabs (All / Drafts / Published / Archived), create-new-skill flow (with family picker), archive/restore, and delete; the skill editor (`components/skills-studio/skill-editor-client.tsx`) is implemented with five tabs: **Manifest** (skill ID, publisher, tagline, family, requirements, permissions), **Instructions** (system prompt editor), **Recipe** (stage node builder with key/kind/title/dependsOn), **Test run** (isolated sandbox execution against a test brief — outputs marked `origin: test`, never written to real projects), and **Version** (semver bump, changelog draft, publish gate that requires a successful test run); **Team Library** (`/app/skills/library`) — implemented in `components/skills-studio/team-library-client.tsx`; two tabs: **Installed** (browse installed skills with trust tier badges — Official / Verified / Community — toggle enable/disable, uninstall non-built-ins, export any skill as a JSON package for sharing, import `.json` packages from team members with permission validation against the Community tier, and review declared permissions per skill) and **Audit log** (timestamped record of every install, uninstall, enable, and disable action); built-in skills are always present and cannot be uninstalled
 - Real-time multi-user collaboration or cloud project sync
 - HyperFrames node UI (queued for Phase 11; the render route `POST /api/hyperframes/render` and status polling route `GET /api/hyperframes/status?taskId=` are implemented with three modes: **simulated** (no keys — resolves immediately), **HeyGen Cloud** (`HEYGEN_API_KEY` set), **Local CLI** (`HYPERFRAMES_LOCAL=true` — requires `npm install -g @heygen/hyperframes`))
 - Actual video generation (Runway integration exists behind `RUNWAY_API_KEY`; HeyGen HyperFrames packaging requires `HEYGEN_API_KEY`)

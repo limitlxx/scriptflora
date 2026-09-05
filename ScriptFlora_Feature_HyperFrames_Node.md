@@ -381,7 +381,7 @@ This keeps ScriptFlora as the Director system:
 3. Do we allow HyperFrames-only projects (no generative shots), e.g. avatar + graphics explainers?
 
 
-mkae sure the hyperframe implementation for phase 11 and the local cli is correct based on the documentation
+make sure the hyperframe implementation for phase 11 and the local cli is correct based on the documentation
 https://hyperframes.heygen.com/developers/overview
 https://hyperframes.heygen.com/guides/authentication
 https://hyperframes.heygen.com/sdk/quickstart

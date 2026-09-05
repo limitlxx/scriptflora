@@ -28,6 +28,18 @@ export default function LandingPage() {
         <Logo />
         <nav className="flex items-center gap-5">
           <Link
+            href="/marketplace"
+            className="text-muted-foreground hover:text-foreground text-[12.5px] transition-colors duration-150"
+          >
+            Marketplace
+          </Link>
+          <Link
+            href="/skills"
+            className="text-muted-foreground hover:text-foreground text-[12.5px] transition-colors duration-150"
+          >
+            Studio
+          </Link>
+          <Link
             href="/projects"
             className="text-muted-foreground hover:text-foreground text-[12.5px] transition-colors duration-150"
           >

@@ -1,0 +1,118 @@
+<!doctype html>
+<html
+  lang="en"
+  data-composition-variables='[
+    {"id":"title",        "label":"Ad headline",  "type":"string","default":"Your product"},
+    {"id":"cta",          "label":"CTA button",   "type":"string","default":"Try it free"},
+    {"id":"logoUrl",      "label":"Logo URL",     "type":"string","default":""},
+    {"id":"tagline",      "label":"Tagline",      "type":"string","default":""},
+    {"id":"primaryColor", "label":"Brand colour", "type":"string","default":"#6d28d9"}
+  ]'
+>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0a0b; overflow: hidden; font-family: system-ui, sans-serif; }
+    .scene {
+      position: relative;
+      width: 1920px; height: 1080px;
+      background: #0a0a0b;
+      overflow: hidden;
+    }
+    .clip-container { position: absolute; inset: 0; }
+    .clip-container video { width: 100%; height: 100%; object-fit: cover; }
+
+    /* End-card overlay — slides in at composition end */
+    .endcard {
+      position: absolute; inset: 0;
+      background: var(--brand, #6d28d9);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 40px;
+      opacity: 0;
+      /* Fade in at 80% of duration via CSS animation */
+      animation: fadeIn 0.6s ease 8s forwards;
+    }
+    @keyframes fadeIn { to { opacity: 1; } }
+
+    .logo {
+      max-height: 96px;
+      max-width: 400px;
+      object-fit: contain;
+      filter: brightness(10); /* make logo white on brand bg */
+    }
+    .endcard-title {
+      font-size: 96px;
+      font-weight: 800;
+      color: #fff;
+      text-align: center;
+      letter-spacing: -0.03em;
+      max-width: 1400px;
+      line-height: 1.05;
+    }
+    .tagline {
+      font-size: 40px;
+      color: rgba(255,255,255,0.8);
+      text-align: center;
+    }
+    .cta-btn {
+      font-size: 40px;
+      font-weight: 700;
+      color: var(--brand, #6d28d9);
+      background: #fff;
+      padding: 28px 80px;
+      border-radius: 8px;
+      letter-spacing: 0.01em;
+    }
+  </style>
+</head>
+<body>
+<div class="scene" id="main"
+  data-composition-id="ad-endcard"
+  data-start="0"
+  data-duration="15"
+  data-width="1920"
+  data-height="1080"
+>
+  <div class="clip-container" id="clips"></div>
+
+  <!-- End card -->
+  <div class="endcard" id="endcard">
+    <img class="logo" id="logo-el" src="" alt="Logo" style="display:none" />
+    <div class="endcard-title" id="title-el">Loading…</div>
+    <div class="tagline" id="tagline-el"></div>
+    <div class="cta-btn" id="cta-el"></div>
+  </div>
+</div>
+<script>
+  const vars = window.__hyperframes?.getVariables?.() ?? {};
+  document.documentElement.style.setProperty('--brand', vars.primaryColor || '#6d28d9');
+  document.getElementById('title-el').textContent   = vars.title   || '';
+  document.getElementById('tagline-el').textContent = vars.tagline || '';
+  document.getElementById('cta-el').textContent     = vars.cta     || '';
+
+  const logoEl = document.getElementById('logo-el');
+  if (vars.logoUrl) { logoEl.src = vars.logoUrl; logoEl.style.display = 'block'; }
+
+  if (vars._clips) {
+    const clips = JSON.parse(vars._clips);
+    const container = document.getElementById('clips');
+    clips.forEach((clip, i) => {
+      if (!clip.videoUrl) return;
+      const v = document.createElement('video');
+      v.src = clip.videoUrl;
+      v.muted = true;
+      v.setAttribute('playsinline', '');
+      v.setAttribute('data-start', clip.startTime || '0');
+      v.setAttribute('data-duration', clip.duration || '5');
+      v.setAttribute('data-track-index', String(i + 1));
+      v.className = 'clip';
+      container.appendChild(v);
+    });
+  }
+</script>
+</body>
+</html>

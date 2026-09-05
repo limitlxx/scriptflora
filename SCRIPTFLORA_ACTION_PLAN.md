@@ -1,15 +1,15 @@
 # ScriptFlora — Upgrade Action Plan
 **The Director's Desk for AI Film**
 
-> Version 5.0 | Updated from PRD v3.2 + Skills Studio/Marketplace PRD + HyperFrames Feature Doc  
-> Status: Active roadmap — Phases 0–8 implemented, Phases S0–S3 + HyperFrames queued  
+> Version 6.0 | Updated: Panel system + Coach PRD + HyperFrames implementation corrected  
+> Status: Active roadmap  
 > Core principle: Create with AI. Review with humans.
 
 ---
 
 ## What This Document Is
 
-Single source of truth for building ScriptFlora from its current foundation into a full Director's desk for AI film. Every implemented phase is marked. Every future phase has actionable tasks. New phases from PRD v3.2 (HyperFrames, Skills Studio, Marketplace) are integrated.
+Single source of truth for building ScriptFlora. Every implemented phase is marked. Every future phase has actionable tasks. Two new features added: detachable Panel System and ScriptFlora Coach.
 
 **Director / Brain:** ChatGPT via Login with ChatGPT (user's own subscription)  
 **Crew:** Routed video models (Runway first) + voice/TTS models  
@@ -54,27 +54,29 @@ Single source of truth for building ScriptFlora from its current foundation into
 
 | Phase | Name | Status |
 |---|---|---|
-| 0 | Stabilize foundation | ✅ Implemented |
-| 1 | Continuity core (Character + World + Voice) | ✅ Implemented |
-| 2 | Shot-layer Director | ✅ Implemented |
-| 3 | Media generation routing (Video + Voice) | ✅ Implemented |
-| 4 | Assembly + export | ✅ Implemented |
-| 5 | Autopilot with checkpoints | ✅ Implemented |
-| 6 | Multi-episode / long-form memory | ✅ Implemented |
-| 7 | Packs, social, team workspaces | ✅ Implemented |
-| 8 | Marketplace readiness (node substrate) | ✅ Implemented |
+| 0 | Stabilize foundation | ✅ Done |
+| 1 | Continuity core (Character + World + Voice) | ✅ Done |
+| 2 | Shot-layer Director | ✅ Done |
+| 3 | Media generation routing (Video + Voice) | ✅ Done |
+| 4 | Assembly + export | ✅ Done |
+| 5 | Autopilot with checkpoints | ✅ Done |
+| 6 | Multi-episode / long-form memory | ✅ Done |
+| 7 | Packs, social, team workspaces | ✅ Done |
+| 8 | Marketplace readiness (node substrate) | ✅ Done |
+| 9 | Upload draft → Brief | ✅ Done |
+| 10 | Asset Library | ✅ Done (data layer + sidebar panel) |
+| 11 | HyperFrames composition node | ✅ Done (real HTML templates, cloud + local CLI) |
+| S0 | Skill manifests foundation | ✅ Done |
+| S1 | Skills Studio (internal authoring) | ✅ Done |
+| S2 | Team skill sharing | ✅ Done |
+| S3 | Public skills marketplace | ✅ Done |
 
-**New phases from PRD v3.2 and feature docs:**
+**New features queued from PRD additions:**
 
-| Phase | Name | Status |
+| Feature | Name | Status |
 |---|---|---|
-| 9 | Upload draft → Brief | Queued |
-| 10 | Asset Library (motion graphics) | Queued |
-| 11 | HyperFrames composition node | Queued |
-| S0 | Skill manifests foundation | Queued |
-| S1 | Skills Studio (internal authoring) | Queued |
-| S2 | Team skill sharing | Queued |
-| S3 | Public skills marketplace | Queued |
+| P1 | Detachable Panel System | Queued |
+| C1 | ScriptFlora Coach | Queued |
 
 ---
 
@@ -90,14 +92,16 @@ Single source of truth for building ScriptFlora from its current foundation into
 | 5 | Autopilot with checkpoints | ✅ Done |
 | 6 | Multi-episode / long-form memory | ✅ Done |
 | 7 | Packs, social, team workspaces | ✅ Done |
-| 8 | Marketplace readiness (node substrate) | ✅ Done |
-| 9 | Upload draft → Brief | PENDING |
-| 10 | Asset Library | In progress (data layer done) |
-| 11 | HyperFrames composition node | PENDING |
-| S0 | Skill manifests foundation | Parallel with Phase 9 |
-| S1 | Skills Studio (internal) | After S0 |
-| S2 | Team skill sharing | After S1 |
-| S3 | Public marketplace | After S2 |
+| 8 | Marketplace readiness | ✅ Done |
+| 9 | Upload draft → Brief | ✅ Done |
+| 10 | Asset Library | ✅ Done |
+| 11 | HyperFrames composition node | ✅ Done |
+| S0 | Skill manifests foundation | ✅ Done |
+| S1 | Skills Studio | ✅ Done |
+| S2 | Team skill sharing | ✅ Done |
+| S3 | Public marketplace | ✅ Done |
+| P1 | Detachable Panel System | Next — 1–2 weeks |
+| C1 | ScriptFlora Coach | After P1 — 2–4 weeks |
 
 ---
 
@@ -433,207 +437,235 @@ This phase is transparent to end users but important for developers and skill au
 
 ---
 
-## Phase 9 — Upload draft → Brief (queued)
+## Phase 9 — Upload draft → Brief ✅ Done
 
-**Goal:** Let users start from a rough document (notes, PDF, email, script draft) instead of a blank form.
+Users can upload a draft document (`.txt`, `.md`, `.pdf`, `.docx`) to the Brief node. The file content is sent to `/api/generate-brief` with `docText` mode. Extracted fields are flagged amber ("inferred") and the Confirm gate still requires explicit user action.
 
-### New capabilities
-- Upload control on the Brief node (txt / md / pdf)
-- Extract fields via ChatGPT + Brief Generator
-- Assumption flags for fields that were inferred
-- Source file stored as Brief provenance
-- Explicit Confirm gate still required after extraction
-
-### Actions
-- [ ] Add file upload input to Brief node (txt, md, pdf)
-- [ ] POST upload content to `/api/generate-brief` with mode `extract`
-- [ ] Extend `generate-brief` route to handle raw document text
-- [ ] Flag extracted fields with `assumedField` indicators (amber border)
-- [ ] Store original file name as `provenance.sourceFile` on Brief data
-- [ ] Confirm gate still required — never auto-confirm after upload
-
-### Exit criteria
-- User uploads a 1-page brief doc and gets a structured Brief in under 10 seconds
-- All inferred fields are flagged before confirm
+**What was built:** File upload input on Brief node, `docText` extraction mode in generate-brief route, `sourceFile` provenance field on `BriefNodeData`, amber assumption flags on extracted fields.
 
 ---
 
-## Phase 10 — Asset Library (in progress)
+## Phase 10 — Asset Library ✅ Done
 
-**Goal:** Store logos, overlays, end cards, audio beds, and fonts for use in HyperFrames packaging.
+Project-level asset store for logos, overlays, audio beds, and template parts used in HyperFrames packaging.
 
-### New capabilities
-- Project-level asset library (file upload + metadata)
-- Asset types: brand/overlay/audio/template_part
-- Assets available to HyperFrames templates and brand kits
-- No auto-injection into generative shot prompts (explicitly not)
-
-### Actions
-- [x] Data layer — `lib/assets.ts`: `loadAssets`, `saveAssets`, `deleteAsset`, `getAssetById`, `fileToAsset` (localStorage + base64 data URLs; upgrade path noted for cloud storage)
-- [x] Build Asset Library sidebar panel (project-scoped)
-- [ ] Support upload of PNG, SVG, MP3, MP4 (short loops), TTF
-- [ ] Metadata: name, type tag, license notes
-- [ ] Assets addressable by ID (used by HyperFrames variable bindings)
-- [ ] Separate asset refs from Character Bible image refs — different namespaces
-
-### Exit criteria
-- User can upload a brand logo and reference it by ID in HyperFrames templates
-- Assets are stored per-project in localStorage/blob (upgrade path: cloud storage)
+**What was built:** `lib/assets.ts` (localStorage, per-project, base64 data URLs), `AssetLibrary` sidebar panel with upload, filter tabs, asset cards with preview + copyable ID, type/tag/license metadata. Explicitly separate namespace from Character Bible image refs.
 
 ---
 
-## Phase 11 — HyperFrames composition node (queued)
+## Phase 11 — HyperFrames composition node ✅ Done
 
-**Goal:** Compose approved Sequence media into designed, deliverable video packages using HeyGen HyperFrames.
+Packages approved Timeline clips into designed, deliverable video using HeyGen HyperFrames — an HTML/CSS/JS → video framework.
 
-### What HyperFrames does vs what generative models do
+**What was actually built (corrected from spec):**
 
-| Layer | Tool | Purpose |
+HyperFrames is not a template engine — it turns real HTML compositions into video. The implementation is based on the real HyperFrames documentation (`hyperframes.mintlify.app`).
+
+**Four real HTML composition templates** (`public/hyperframes-templates/`):
+- `explainer_16x9` — title block, subtitle, CTA, logo, dark overlay, 1920×1080
+- `ad_endcard_16x9` — video clips + CSS-animated end card with brand colour, 1920×1080
+- `social_9x16` — safe-area bottom text, vertical, 1080×1920
+- `training_module` — header bar, side panel, key fact callout, presenter credit, 1920×1080
+
+Each template uses `data-composition-variables`, `window.__hyperframes.getVariables()`, and proper `data-start`/`data-duration`/`data-track-index` clip attributes. Clips from the Timeline node are passed as `_clips` JSON variable.
+
+**Four API routes:**
+- `POST /api/hyperframes/render` — loads template from disk, injects `_clips` variable, submits to HeyGen `POST /v3/hyperframes/renders` (auth: `X-Api-Key`) or `npx hyperframes render` (local CLI) or returns simulated task ID
+- `GET /api/hyperframes/status?taskId=` — polls `GET /v3/hyperframes/renders/{render_id}`, normalises status, returns `video_url`
+- `GET /api/hyperframes/preview?templateId=&variables=` — injects `window.__hyperframes.getVariables()` bootstrap and serves template HTML for iframe preview
+- `GET /api/hyperframes/file?path=` — serves local CLI render output (only when `HYPERFRAMES_LOCAL=true`)
+
+**HyperFrames node:** template picker, variable editor (title, subtitle, CTA, logoUrl, primaryColor, presenter + custom key/value), clip sync from Timeline, "Preview composition" iframe toggle (loads real template HTML with current variables), render button, status banner, approve/reject, provenance accordion.
+
+**Local CLI path (opt-in):** `HYPERFRAMES_LOCAL=true` → `npx hyperframes render <dir> --output output.mp4 --variables '<json>'`. Template is copied to `/tmp/hf-renders/{taskId}/`, CLI runs async, status polls output directory for completed `.mp4` files.
+
+### Environment variables
+
+```bash
+# HeyGen cloud rendering (POST /v3/hyperframes/renders)
+HEYGEN_API_KEY=
+
+# Local CLI rendering (opt-in alternative)
+HYPERFRAMES_LOCAL=true    # set to use local CLI instead of cloud
+HYPERFRAMES_CLI_BIN=      # default: "npx hyperframes"
+HEYGEN_API_URL=            # default: https://api.heygen.com
+```
+
+---
+
+## Phase S0 — Skill manifests foundation ✅ Done
+
+**What was built:** Full `SkillManifest` schema with `permissions`, `requires`, `modelPreferences`, `packagingDefaults`, `changelog`. Permission catalog with 8 permission types. Three built-in skills with complete manifests (Standard, Auteur, Series). `requires.locks` validation in `handleGenerate` — blocks with a descriptive preflight error if declared locks are missing. Series skill prompt file at `public/skills/series-script.md`.
+
+---
+
+## Phase S1 — Skills Studio ✅ Done
+
+**What was built:** `/app/skills` (skill list with family picker, status filter, create/archive/delete), `/app/skills/[id]` (5-tab editor: Manifest, Instructions, Recipe, Test run, Version), `/api/skills/test-run` (isolated sandbox — outputs marked `origin: test`, never touches real Continuity Log), `lib/skill-studio.ts` store.
+
+---
+
+## Phase S2 — Team skill sharing ✅ Done
+
+**What was built:** `/app/skills/library` (installed skills with trust tier display, permission review, export/import), `lib/skill-library.ts` (install/uninstall/enable/disable, audit log, JSON export/import, permission validation per trust tier), `TeamLibraryClient` with two tabs (Installed + Audit log).
+
+---
+
+## Phase S3 — Public skills marketplace ✅ Done
+
+**What was built:** `/app/marketplace` (browse/search/filter/sort), `/api/marketplace/feed` (built-in catalog with official + community skills), `lib/marketplace.ts` (types + client helpers), `MarketplaceClient` (search, family/tier/sort filters, skill cards with detail panel showing permissions, recipe, changelog, trust tier warning for community skills, install button with permission validation).
+
+---
+
+## Feature P1 — Detachable Panel System (queued)
+
+**Goal:** Photoshop-style panels that can dock to edges OR detach as freely movable floating windows. Users can re-attach floating panels. Layout persists per user/project.
+
+**Primary panels:**
+1. Nodes Library (currently in floating sidebar — make it a proper panel)
+2. Node Inspector / Properties (selected node details — new)
+3. Later: Coach panel, Assets panel
+
+### Core UX
+- **Docked mode**: dock left, right, or bottom; resizable; collapse/expand
+- **Floating mode**: detach via drag on header or "Detach" button; freely draggable; resizable; z-index stacking; double-click header to re-dock
+- **Dock zones**: highlight target when dragging near edges; drop to dock
+- Mobile: bottom sheet / drawer fallback (no free-float required)
+
+### Panel state schema
+```ts
+type PanelLayout = {
+  id: string
+  mode: 'docked' | 'floating'
+  dockSide?: 'left' | 'right' | 'bottom'
+  position: { x: number; y: number }   // floating only
+  size: { width: number; height: number }
+  collapsed: boolean
+  zIndex: number
+}
+```
+
+### Actions
+- [ ] `lib/panel-store.ts` — Zustand store for panel layouts, persist to localStorage
+- [ ] `PanelShell` component — header with drag handle, Dock/Detach/Collapse controls, resize handles
+- [ ] `DockZone` overlay component — show when dragging near edges
+- [ ] `usePanelDrag` hook — pointer events for drag (mouse + touch), constrain to viewport
+- [ ] `PanelPortal` — render floating panels in document body overlay (above canvas)
+- [ ] Convert Nodes Library sidebar into a proper Panel (docked left by default)
+- [ ] Build Node Inspector panel (docked right by default, shows selected node properties)
+- [ ] Ensure drag-to-canvas from floating Nodes Library still works with React Flow
+- [ ] Keyboard: focusable header controls (Detach, Dock, Collapse)
+- [ ] Mobile: collapse to bottom drawer; no free-float
+
+### Technical notes
+- Floating panels render above React Flow via portal — do not block canvas interactions
+- Dragging nodes from a floating Nodes Library to canvas must still trigger React Flow drop handlers
+- Use pointer events (not mouse events) for touch support
+- Bring panel to front on click (`zIndex` increment)
+- Smooth position animation (CSS transition on dock/undock; no animation on drag)
+
+### Exit criteria
+1. Nodes Library docks left and detaches to float — users can drag it anywhere
+2. Inspector docks right and detaches to float
+3. Floating panel is freely draggable and resizable
+4. Drop near edge shows dock zone highlight and re-docks
+5. Layout survives page refresh (localStorage)
+6. Canvas pan/zoom works when not interacting with panels
+7. Collapse works in docked mode
+
+---
+
+## Feature C1 — ScriptFlora Coach (queued)
+
+**Goal:** State-aware in-app tutor that teaches the Director method on the actual canvas while the user does real work. Not a generic chatbot — grounded in docs and live canvas state.
+
+**Source:** `ScriptFlora_PRD_Coach.md`
+
+### What Coach does
+- Reads current project/canvas state (brief status, locks, skills, shots, credits)
+- Answers questions grounded in product docs and Director-method rules
+- Teaches through on-screen spotlight, step cards, and guided walkthroughs
+- Proposes safe "do with me" actions — never silent credit spend
+- Respects plan gates, credits, and continuity locks
+
+### UI surfaces
+- Top-bar **Coach** button + `Cmd/Ctrl + J` shortcut
+- Collapsible right rail: chat thread, active checklist, Show me / Do with me / Skip / Docs actions
+- On-canvas teaching layer: spotlight (dim + highlight), beacon pulse, floating step card
+- Mobile: bottom sheet
+- Panel System integration: Coach rail uses the P1 panel system (dock right by default, can float)
+
+### Coach state snapshot
+```ts
+type CoachState = {
+  plan: "free" | "creator" | "studio"
+  route: string
+  briefStatus: "empty" | "draft" | "generated" | "confirmed"
+  characterImagesLocked: boolean
+  styleLockPresent: boolean
+  selectedSkillId?: string
+  shotPlanExists: boolean
+  approvedShotCount: number
+  sequenceClipCount: number
+  hyperframesStatus?: string
+  directorCreditsRemaining?: number
+  runwaySecondsRemaining?: number
+  hasChatGPTLogin: boolean
+  blockers: string[]
+}
+```
+
+### Coach modes
+| Mode | Behavior | Credit safety |
 |---|---|---|
-| Shot generation | Runway / Veo / Seedance | Create the raw clips |
-| Assembly | Timeline node | Order clips, rough cut |
-| **Packaging** | **HyperFrames node** | Titles, captions, branding, platform layouts |
-| Finishing | External NLE | Sound design, grade, music |
+| Explain | Answer + optional doc link | None |
+| Point / Show me | Spotlight UI + 1 instruction | None |
+| Walkthrough | Multi-step checklist | None unless step requires confirm |
+| Do with me | Propose → user confirms → execute | Explicit confirm required for any spend |
 
-HyperFrames does not replace generative models. It finishes the cut.
+### First-run walkthrough (9 steps)
+1. Welcome → create project
+2. Fill Brief → confirm it
+3. Select skill → run it (or explain gate)
+4. Review nodes → lock one
+5. Show production roadmap
 
-### New node: HyperFrames
-
-**Inputs:**
-- Upstream Sequence (ordered clips + audio)
-- Script text / captions (optional)
-- Style Lock / brand kit (optional)
-- Template ID
-- Aspect ratio targets
-- Variables (title, CTA, logo URL, colours)
-
-**Outputs:**
-- Composition bundle (HTML/CSS/assets)
-- Rendered video per aspect ratio
-- Preview thumbnail
-- Provenance record (template, variables, source clip IDs, render IDs)
-
-**V1 templates:**
-- `explainer_16x9` — narrated explainer with titles
-- `ad_endcard_16x9` — short ad with end card / CTA
-- `social_9x16` — vertical social with safe margins and captions
-- `training_module` — lesson segment with section titles and key facts
-
-**Rendering paths:**
-- **HeyGen Cloud** (default): POST composition bundle to HeyGen Rendering API, poll for result
-- **Local CLI** (opt-in): `hyperframes check` → `hyperframes render`
+### Top 5 priority coaching intents for MVP
+1. `brief_unconfirmed` — skills disabled blocker
+2. `character_before_video` — missing character images gate
+3. `choose_skill` — Standard vs Auteur vs Series
+4. `runway_credits_gate` — video generation blocked
+5. `hyperframes_purpose` — "what does HyperFrames do?"
 
 ### Actions
-- [ ] Add `HyperFramesNodeData` type to `flow-types.ts`
-- [ ] Build `hyperframes-node.tsx` with template picker, variable editor, clip mapping, render controls
-- [ ] Build `/api/hyperframes/render` route — build composition bundle, call HeyGen API
-- [ ] Build `/api/hyperframes/status?taskId=` polling route
-- [ ] Store provenance on result: template, variables, source clip IDs, render IDs
-- [ ] Add `HEYGEN_API_KEY` to `.env.local`
-- [ ] Human approve/reject before package is marked export-ready
-- [ ] Wire into canvas, menu, sidebar
-
-### Exit criteria
-- User picks a template, maps clips from Sequence, sets variables, renders a draft
-- Rendered output previews in the node
-- Approved HyperFrames output is included in Export Package
-- Failure states are visible and retryable
-
----
-
-## Phase S0 — Skill manifests foundation (queued)
-
-**Goal:** Finalize the manifest schema, migrate built-in skills, lock provenance and pinning.
-
-This phase is already partially done (Phase 8). What remains:
-
-### Actions
-- [ ] Finalize `SkillManifest` JSON schema including `permissions`, `requires`, `modelPreferences`, `packagingDefaults`
-- [ ] Add `permissions` catalog to manifests: `read:brief`, `read:bible`, `read:style`, `write:skill_nodes`, `write:continuity_patch`, `suggest:model_route`, `suggest:packaging`
-- [ ] Migrate Standard, Auteur, Series skills to full manifest format
-- [ ] Validate skill can declare `requires.locks` and block if missing (e.g. requires Style Lock)
-- [ ] Changelog field on manifest (required for publish later)
-
-### Exit criteria
-- All built-in skills have valid full manifests
-- A skill can declare required inputs and the canvas surfaces a clear error when they're missing
-
----
-
-## Phase S1 — Skills Studio (ScriptFlora Studio) — internal authoring (queued)
-
-**Goal:** First-party skill authoring with isolated test runs.
-
-### New surfaces
-- **Skill list** — drafts, published, archived skills
-- **Manifest editor** — family, version, permissions, required inputs
-- **Instructions editor** — Director system/prompt logic
-- **Recipe builder** — node types, order, dependencies, defaults
-- **Test runner** — sandbox canvas execution (outputs marked `origin: test`)
-- **Version manager** — semver, changelog
-
-### Skill families supported
-| Family | Example outputs |
-|---|---|
-| Script | Scenes, dialogue, macro-states |
-| Style | Style Pack draft, visual constraints |
-| Structure | Beat/act templates, format defaults |
-| Packaging | HyperFrames template preferences |
-| Domain | Training modules, theater scene study |
-
-### Actions
-- [ ] Build `/app/skills` route — skill list view
-- [ ] Build manifest editor form (family, inputs, permissions, version)
-- [ ] Build recipe builder (node type list with deps and defaults)
-- [ ] Build test runner — ephemeral project, isolated continuity (no real log writes)
-- [ ] Test outputs marked `origin: "test"` — never persist to real project
-- [ ] Version save + immutable after publish
+- [ ] `lib/coach-state.ts` — collect and shape `CoachState` snapshot from canvas + store
+- [ ] `/api/coach/chat` route — system prompt with Director method + docs context + state snapshot; uses ChatGPT proxy
+- [ ] `CoachRail` component — chat thread, step cards, action buttons (integrates with P1 panel system)
+- [ ] `CoachSpotlight` component — dim overlay with highlighted target, floating step card, beacon pulse
+- [ ] `useCoachBlockers` hook — derives blockers from canvas state, fires proactive tips
+- [ ] First-run walkthrough script (`first_directed_path`) — 9 steps
+- [ ] Top 20 intent handlers (see PRD section 9)
+- [ ] Plan/credit awareness strip in Coach rail
+- [ ] `coachSettings` preference: full / important / off
+- [ ] Mobile: bottom sheet mode for Coach
 
 ### Safety rules
-- Test runs cannot write to real project Continuity Log
-- Core nodes cannot be in a skill's recipe as system nodes
-- Permissions must be declared before runtime access is allowed
+1. No bypass of Confirm Brief or Checkpoint
+2. No credit spend without explicit confirm
+3. No false claims of Free video generation
+4. No publishing skills without Studio test path
+5. Do with me commands require `userConfirmed: true`
 
 ### Exit criteria
-- Internal author can create a skill, define recipe, run test, save version
-- Test project spawns expected nodes with correct provenance
-- Test run cannot mutate real continuity state
+- Coach rail opens with state-grounded responses
+- Spotlight works on Brief Confirm and Skill Selector nodes
+- First-run walkthrough completable in 3–5 minutes
+- Blocker tips fire for unconfirmed Brief and zero Runway credits
+- Do-with-me requires confirm and cannot silent-charge
+- Plan-aware messaging (Free vs Creator)
+- Coach can be set to Important only / Off
 
 ---
-
-## Phase S2 — Team skill sharing (queued)
-
-**Goal:** Team members can install and share skills within a workspace.
-
-### Actions
-- [ ] Team library: skills visible to all workspace members
-- [ ] Author roles: team admin can designate approved authors
-- [ ] Install flow: browse → review permissions → install to library → pin to project
-- [ ] Audit log for install/uninstall/permission grants
-- [ ] Skill update notification (non-destructive — doesn't auto-change pinned projects)
-
-### Trust tiers
-| Tier | Meaning |
-|---|---|
-| Official | ScriptFlora first-party |
-| Verified | Reviewed publisher |
-| Community | Available but labeled; limited permissions |
-
----
-
-## Phase S3 — Public skills marketplace (queued)
-
-**Goal:** Open discovery, install, and optional commerce for third-party skills.
-
-**Do not open until S0–S2 quality and permission systems are stable.**
-
-### Actions
-- [ ] Browse/search by family and trust tier
-- [ ] Skill detail page: description, permissions list, screenshots, changelog, publisher
-- [ ] Verified publisher program
-- [ ] Install/uninstall from marketplace
-- [ ] Optional commerce layer (free / one-time / subscription share) — not required for launch
-- [ ] Permission overreach detection and rejection
 
 ---
 
@@ -686,12 +718,10 @@ This phase is already partially done (Phase 8). What remains:
 
 | Horizon | Signal |
 |---|---|
-| ✅ Now (Phases 0–8) | Full node canvas — Brief through team workspace — compiling cleanly |
-| 1–2 weeks (Phase 9–10) | Upload draft → Brief in < 10s; Asset Library for brand files |
-| 3–4 weeks (Phase 11) | HyperFrames node packaging approved clips into designed deliverables |
-| 6–8 weeks (S0–S1) | Internal skills authored, tested, and versioned in Skills Studio |
-| 3 months (S2) | Team skill sharing with permission review and audit |
-| Later (S3) | Public marketplace with verified publishers and trust tiers |
+| ✅ Now (Phases 0–S3) | Full stack — canvas, skills, marketplace, HyperFrames — compiling cleanly |
+| 1–2 weeks (P1) | Detachable panel system — Nodes Library and Inspector dock + float |
+| 2–4 weeks (C1 MVP) | Coach rail opens, spotlight works, first-run walkthrough completable |
+| 1 month (C1 v1.1) | Do-with-me actions, Skills Studio mini-walkthrough, HyperFrames packaging walkthrough |
 
 ---
 
@@ -705,9 +735,23 @@ LWC_SECRET=your-lwc-secret-here
 # Without this key, generate-shot returns a simulated result
 RUNWAY_API_KEY=
 
-# Required for Phase 11 HyperFrames packaging (HeyGen)
-# Without this key, hyperframes-node will need local CLI path
+# Phase 11 — HeyGen HyperFrames packaging (cloud path)
+# Auth header: X-Api-Key on POST /v3/hyperframes/renders
+# Without this key, hyperframes/render returns a simulated result
 HEYGEN_API_KEY=
+# Alias: HYPERFRAMES_API_KEY also works (same credential)
+
+# Phase 11 — Local CLI rendering (opt-in alternative to cloud)
+# Set to "true" to use `npx hyperframes render` instead of HeyGen cloud
+# Requires: npm install -g hyperframes (or npx works without install)
+HYPERFRAMES_LOCAL=
+HYPERFRAMES_CLI_BIN=       # default: "npx hyperframes"
+HEYGEN_API_URL=            # default: https://api.heygen.com
+
+# Public marketplace feed URL (Phase S3)
+# Default: /api/marketplace/feed (built-in catalog)
+# Set for a live CDN feed in production
+NEXT_PUBLIC_MARKETPLACE_FEED_URL=
 ```
 
 ---
@@ -741,7 +785,10 @@ All nodes available from the sidebar library (drag to canvas or click to place):
 | Continuity Checker | 0 | Cross-scene consistency check |
 | Multi-Format Output | 0 | Download screenplay / shotlist / social cuts |
 | Export | 0 | Markdown / PDF / Final Draft export |
-| HyperFrames | 11 | Packaging composition (queued) |
+| HyperFrames | 11 | Packaging composition — HTML templates, HeyGen cloud or local CLI |
+
+> **P1 (next):** Panel system will convert the Nodes Library into a proper dockable/floating panel and add a Node Inspector panel.  
+> **C1 (after P1):** Coach rail will appear as a panel (dock right by default, can float).
 
 ---
 

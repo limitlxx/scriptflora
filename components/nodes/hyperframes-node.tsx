@@ -53,6 +53,8 @@ export function HyperFramesNode({ id, data, selected }: NodeProps<HyperFramesNod
   const [hovered, setHovered] = useState(false)
   const [showVars, setShowVars] = useState(false)
   const [showProvenance, setShowProvenance] = useState(false)
+  const [showPreview, setShowPreview] = useState(false)
+  const [previewKey, setPreviewKey] = useState(0)    // increment to force iframe reload
   const [newVarKey, setNewVarKey] = useState('')
   const [newVarVal, setNewVarVal] = useState('')
   const pollRef = useRef<number | null>(null)
@@ -264,7 +266,7 @@ export function HyperFramesNode({ id, data, selected }: NodeProps<HyperFramesNod
                       {clip.slotIndex + 1}
                     </span>
                     <span className="min-w-0 flex-1 truncate text-[11.5px] text-foreground/80">{clip.clipLabel}</span>
-                    {clip.videoUrl && <Check className="size-3 shrink-0 text-success/60" title="Has video" />}
+                    {clip.videoUrl && <Check className="size-3 shrink-0 text-success/60" />}
                   </div>
                 ))}
               </div>
@@ -316,6 +318,15 @@ export function HyperFramesNode({ id, data, selected }: NodeProps<HyperFramesNod
             </div>
           )}
 
+          {/* Preview composition — loads the template HTML with current variables
+              via /api/hyperframes/preview (iframe, same-origin, sandboxed) */}
+          <button type="button"
+            onClick={() => { setPreviewKey((k) => k + 1); setShowPreview((v) => !v) }}
+            className="nodrag flex w-full items-center justify-center gap-1.5 rounded-xl border border-white/[0.08] py-2 text-[11.5px] text-muted-foreground transition-colors hover:bg-white/[0.05] hover:text-foreground">
+            <Film className="size-3.5" />
+            {showPreview ? 'Hide composition preview' : 'Preview composition'}
+          </button>
+
           {/* Render / re-render */}
           <button type="button" onClick={() => void handleRender()} disabled={disabled || isRendering}
             className={cn(
@@ -352,6 +363,32 @@ export function HyperFramesNode({ id, data, selected }: NodeProps<HyperFramesNod
                   )}
                 </div>
               ))}
+            </div>
+          )}
+
+          {/* Live composition preview — iframe loads /api/hyperframes/preview
+              which serves the real HyperFrames template HTML with variables
+              injected via window.__hyperframes.getVariables() bootstrap */}
+          {showPreview && (
+            <div className="overflow-hidden rounded-xl border border-white/[0.07] bg-black">
+              <div className="flex items-center justify-between border-b border-white/[0.06] px-3 py-1.5">
+                <span className="text-[10px] text-muted-foreground">Composition preview</span>
+                <a
+                  href={`https://www.hyperframes.dev/`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] text-primary hover:underline"
+                >
+                  Open in HyperFrames Studio ↗
+                </a>
+              </div>
+              <iframe
+                key={previewKey}
+                src={`/api/hyperframes/preview?templateId=${data.templateId}&variables=${encodeURIComponent(JSON.stringify(data.variables ?? {}))}`}
+                className="aspect-video w-full border-0 bg-black"
+                sandbox="allow-scripts allow-same-origin"
+                title="HyperFrames composition preview"
+              />
             </div>
           )}
 

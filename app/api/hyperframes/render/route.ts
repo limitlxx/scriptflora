@@ -2,26 +2,39 @@
  * POST /api/hyperframes/render
  * Phase 11 — HyperFrames composition node.
  *
- * Three render modes, chosen automatically based on env vars:
+ * HyperFrames turns HTML/CSS/JS compositions into rendered video.
+ * Each template is a real HyperFrames-compatible HTML project stored under
+ * public/hyperframes-templates/{templateId}/index.html.
  *
- *   1. Local CLI  (HYPERFRAMES_LOCAL=true)
- *      Writes a composition JSON to /tmp, runs `hyperframes check` then
- *      `hyperframes render`. Opt-in — useful offline or to avoid cloud cost.
- *      Requires: `npm install -g @heygen/hyperframes` (or `npx @heygen/hyperframes`)
+ * Variables are injected at render time via window.__hyperframes.getVariables().
+ * The _clips variable carries the JSON-encoded clip array from the Timeline node.
  *
- *   2. HeyGen Cloud  (HEYGEN_API_KEY set, HYPERFRAMES_LOCAL not set)
- *      Submits composition to HeyGen Rendering API and polls for result.
+ * Three render modes:
  *
- *   3. Simulated  (neither key present)
- *      Returns a fake task ID immediately. Full canvas UI works with no
- *      credentials — good for development.
+ *   1. HeyGen Cloud  (HEYGEN_API_KEY set, HYPERFRAMES_LOCAL not set)
+ *      Reads the template HTML, base64-encodes it, submits to:
+ *      POST /v3/hyperframes/renders
+ *      Auth header: X-Api-Key
+ *      Polls: GET /v3/hyperframes/renders/{render_id}
+ *      Response: { render_id, status, video_url }
  *
- * HeyGen HyperFrames API: https://hyperframes.heygen.com/developers
- * Local CLI docs: https://hyperframes.heygen.com/cli
+ *   2. Local CLI  (HYPERFRAMES_LOCAL=true)
+ *      Uses: npx hyperframes render <projectDir> --output <file> --variables '<json>'
+ *      The template dir is copied to /tmp/hf-renders/{taskId}/ and rendered there.
+ *      No account required. Chrome + FFmpeg must be on PATH.
+ *      Install: npm install -g hyperframes
+ *
+ *   3. Simulated  (neither configured)
+ *      Returns hf-{id} immediately. Canvas UI fully exercisable without credentials.
+ *
+ * Docs:
+ *   Cloud CLI:    https://hyperframes.mintlify.app/deploy/cloud
+ *   Local render: https://hyperframes.mintlify.app/guides/rendering
+ *   Cloud API:    https://developers.heygen.com/reference/create-hyperframes-render
  */
 import { nanoid } from 'nanoid'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
+import { readFile, writeFile, mkdir, cp } from 'fs/promises'
+import { join, resolve } from 'path'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 import type {
@@ -31,7 +44,15 @@ import type {
 } from '@/lib/flow-types'
 
 const execAsync = promisify(exec)
-const HEYGEN_API_BASE = 'https://api.heygen.com/v3/hyperframes'
+const HEYGEN_API_BASE = process.env.HEYGEN_API_URL ?? 'https://api.heygen.com'
+
+// Map templateId → disk path under public/hyperframes-templates/
+const TEMPLATE_DIRS: Record<HyperFramesTemplate, string> = {
+  explainer_16x9:    'explainer_16x9',
+  ad_endcard_16x9:   'ad_endcard_16x9',
+  social_9x16:       'social_9x16',
+  training_module:   'training_module',
+}
 
 const TEMPLATE_VERSIONS: Record<HyperFramesTemplate, string> = {
   explainer_16x9:    '1.0.0',
@@ -48,11 +69,27 @@ export type HyperFramesRenderRequest = {
 }
 
 export type HyperFramesRenderResponse = {
+  /** render_id from HeyGen, or local/simulated task ID */
   taskId: string
   renderMode: 'heygen_cloud' | 'local_cli' | 'simulated'
   provenance: HyperFramesProvenance
   simulated?: boolean
-  localOutputDir?: string   // set when renderMode = local_cli
+  localOutputDir?: string
+}
+
+/** Build the variables object to inject, including the _clips track list */
+function buildVariables(
+  variables: Record<string, string>,
+  clipMappings: HyperFramesClipMapping[],
+): Record<string, string> {
+  const clips = clipMappings.map((c) => ({
+    videoUrl:  c.videoUrl  ?? '',
+    audioUrl:  c.audioUrl  ?? '',
+    startTime: '0',
+    duration:  String(c.durationSeconds),
+    label:     c.clipLabel,
+  }))
+  return { ...variables, _clips: JSON.stringify(clips) }
 }
 
 export async function POST(request: Request) {
@@ -66,17 +103,15 @@ export async function POST(request: Request) {
   catch { return Response.json({ error: 'Invalid JSON' }, { status: 400 }) }
 
   const { templateId, aspectRatios, variables, clipMappings } = body
-  if (!templateId) {
-    return Response.json({ error: 'templateId is required' }, { status: 400 })
-  }
+  if (!templateId) return Response.json({ error: 'templateId is required' }, { status: 400 })
 
   const taskId = `hf-${nanoid(10)}`
   const useLocalCli = process.env.HYPERFRAMES_LOCAL === 'true'
   const renderMode = useLocalCli
     ? 'local_cli'
-    : process.env.HEYGEN_API_KEY
-    ? 'heygen_cloud'
-    : 'simulated'
+    : process.env.HEYGEN_API_KEY ? 'heygen_cloud' : 'simulated'
+
+  const mergedVars = buildVariables(variables ?? {}, clipMappings ?? [])
 
   const provenance: HyperFramesProvenance = {
     provider: 'hyperframes',
@@ -91,48 +126,38 @@ export async function POST(request: Request) {
     createdAt: new Date().toISOString(),
   }
 
+  // Load the template HTML from disk
+  const templateDir = join(process.cwd(), 'public', 'hyperframes-templates', TEMPLATE_DIRS[templateId])
+  let templateHtml: string
+  try {
+    templateHtml = await readFile(join(templateDir, 'index.html'), 'utf-8')
+  } catch {
+    return Response.json({ error: `Template "${templateId}" not found on disk.` }, { status: 500 })
+  }
+
   // ── 1. Local CLI path ────────────────────────────────────────────
+  // npx hyperframes render <dir> --output <file> --variables '<json>'
   if (useLocalCli) {
     try {
-      const outDir = join('/tmp', 'hf-renders', taskId)
+      const outDir = resolve('/tmp/hf-renders', taskId)
       await mkdir(outDir, { recursive: true })
 
-      // Build the composition JSON that the HyperFrames CLI consumes
-      const composition = {
-        template: templateId,
-        version: TEMPLATE_VERSIONS[templateId] ?? '1.0.0',
-        aspectRatios: aspectRatios ?? ['16:9'],
-        variables: {
-          ...(variables ?? {}),
-          _tracks: JSON.stringify(
-            (clipMappings ?? []).map((c, i) => ({
-              slot: i,
-              label: c.clipLabel,
-              videoUrl: c.videoUrl ?? '',
-              audioUrl: c.audioUrl ?? '',
-              durationSeconds: c.durationSeconds,
-            }))
-          ),
-        },
-        output: outDir,
-      }
+      // Copy the template project to the temp dir
+      await cp(templateDir, outDir, { recursive: true })
 
-      const compFile = join(outDir, 'composition.json')
-      await writeFile(compFile, JSON.stringify(composition, null, 2))
+      const cli = process.env.HYPERFRAMES_CLI_BIN ?? 'npx hyperframes'
+      const outputPath = join(outDir, 'output.mp4')
+      const aspectFlag = (aspectRatios?.[0] === '9:16') ? '--aspect-ratio 9:16' : '--aspect-ratio 16:9'
+      // Escape single quotes in the JSON for shell safety
+      const varsJson = JSON.stringify(mergedVars).replace(/'/g, "'\\''")
 
-      // Determine CLI binary — prefer global install, fallback to npx
-      const cli = process.env.HYPERFRAMES_CLI_BIN ?? 'hyperframes'
-
-      // Step 1: check composition is valid
-      await execAsync(`${cli} check "${compFile}"`, { timeout: 30_000 })
-
-      // Step 2: start render (async — CLI writes outputs to outDir)
-      // ponytail: we fire-and-forget the render so the HTTP response
-      // returns immediately. The status route polls the output directory.
-      // Ceiling: long renders may outlast the Node process in serverless.
-      // Upgrade path: use a proper job queue.
-      execAsync(`${cli} render "${compFile}"`, { timeout: 600_000 }).catch((err) => {
-        console.error('[hyperframes CLI render]', err)
+      // Fire-and-forget: HTTP responds immediately, CLI runs in background
+      execAsync(
+        `${cli} render "${outDir}" --output "${outputPath}" --variables '${varsJson}' ${aspectFlag} --quality standard`,
+        { timeout: 600_000 }
+      ).catch((err: Error) => {
+        console.error('[hyperframes CLI]', err.message)
+        void writeFile(join(outDir, 'render.error'), err.message, 'utf-8').catch(() => {})
       })
 
       return Response.json({
@@ -144,18 +169,14 @@ export async function POST(request: Request) {
 
     } catch (err) {
       const message = err instanceof Error ? err.message : 'CLI render failed'
-      console.error('[/api/hyperframes/render local]', message)
-
-      // Surface helpful install hint
-      const hint = message.includes('not found') || message.includes('ENOENT')
-        ? ' — is the HyperFrames CLI installed? Run: npm install -g @heygen/hyperframes'
+      const hint = (message.includes('not found') || message.includes('ENOENT'))
+        ? ' — is hyperframes installed? Run: npm install -g hyperframes'
         : ''
-
       return Response.json({ error: `${message}${hint}` }, { status: 500 })
     }
   }
 
-  // ── 2. Simulated path (no keys) ──────────────────────────────────
+  // ── 2. Simulated path ────────────────────────────────────────────
   if (!process.env.HEYGEN_API_KEY) {
     return Response.json({
       taskId,
@@ -166,47 +187,42 @@ export async function POST(request: Request) {
   }
 
   // ── 3. HeyGen Cloud path ─────────────────────────────────────────
-  const tracks = (clipMappings ?? []).map((c, i) => ({
-    slot: i,
-    label: c.clipLabel,
-    videoUrl: c.videoUrl ?? '',
-    audioUrl: c.audioUrl ?? '',
-    durationSeconds: c.durationSeconds,
-  }))
-
-  const heygenBody = {
-    template_id: templateId,
-    variables: {
-      ...variables,
-      _tracks: JSON.stringify(tracks),
-    },
-    output_ratios: aspectRatios,
-  }
-
+  // Submit the composition HTML as base64 to POST /v3/hyperframes/renders.
+  // The API returns a render_id. Poll GET /v3/hyperframes/renders/{render_id}.
+  // Docs: https://developers.heygen.com/reference/create-hyperframes-render
   try {
-    const res = await fetch(`${HEYGEN_API_BASE}/renders`, {
+    const base64Project = Buffer.from(templateHtml).toString('base64')
+
+    const renderRes = await fetch(`${HEYGEN_API_BASE}/v3/hyperframes/renders`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'X-Api-Key': process.env.HEYGEN_API_KEY,
       },
-      body: JSON.stringify(heygenBody),
+      body: JSON.stringify({
+        project_data: base64Project,        // base64-encoded composition HTML
+        variables:    mergedVars,           // merged user vars + _clips track list
+        aspect_ratio: aspectRatios?.[0] ?? '16:9',
+        format:       'mp4',
+        quality:      'standard',
+        title:        `ScriptFlora · ${templateId}`,
+      }),
     })
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: res.statusText }))
+    if (!renderRes.ok) {
+      const err = await renderRes.json().catch(() => ({ message: renderRes.statusText }))
       return Response.json(
-        { error: (err as { message?: string }).message ?? 'HeyGen render failed.' },
-        { status: res.status },
+        { error: (err as { message?: string }).message ?? 'HeyGen render submission failed.' },
+        { status: renderRes.status },
       )
     }
 
-    const data = await res.json() as { render_id?: string; task_id?: string }
-    const heygenTaskId = data.render_id ?? data.task_id ?? taskId
-    provenance.renderIds = [heygenTaskId]
+    const data = await renderRes.json() as { render_id?: string; id?: string }
+    const renderId = data.render_id ?? data.id ?? taskId
+    provenance.renderIds = [renderId]
 
     return Response.json({
-      taskId: heygenTaskId,
+      taskId: renderId,
       renderMode: 'heygen_cloud',
       provenance,
     } satisfies HyperFramesRenderResponse)

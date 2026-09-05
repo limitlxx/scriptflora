@@ -27,6 +27,7 @@ import {
   Share2,
   ShieldCheck,
   Sparkles,
+  Store,
   Target,
   Tv,
   Upload,
@@ -133,6 +134,9 @@ const NODE_GROUPS: NodeGroup[] = [
 const NAV_ITEMS = [
   ['Docs', BookOpen, '/docs'],
   ['Projects', FolderKanban, '/projects'],
+  ['Skills Studio', Sparkles, '/skills'],
+  ['Skill Library', BookMarked, '/skills/library'],
+  ['Marketplace', Store, '/marketplace'],
   ['Techniques', WandSparkles, null],
   ['Assets', Package, null],
 ] as const
