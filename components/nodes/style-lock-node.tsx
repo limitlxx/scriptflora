@@ -25,6 +25,7 @@ export function StyleLockNode({ id, data, selected }: NodeProps<StyleLockNodeTyp
   const [sourcePreview, setSourcePreview] = useState<string | null>(null)
   const [variants, setVariants] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingMsg, setLoadingMsg] = useState('')
   const [genError, setGenError] = useState<string | null>(null)
   const [variantCount, setVariantCount] = useState(2)
   const [pinnedImages, setPinnedImages] = useState<string[]>([])
@@ -49,10 +50,11 @@ export function StyleLockNode({ id, data, selected }: NodeProps<StyleLockNodeTyp
 
   const generateMoodBoard = async () => {
     setLoading(true)
+    setLoadingMsg('Submitting…')
     setGenError(null)
     setVariants([])
     try {
-      const res = await fetch('/api/generate-reference-image', {
+      const submitRes = await fetch('/api/generate-reference-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -62,13 +64,41 @@ export function StyleLockNode({ id, data, selected }: NodeProps<StyleLockNodeTyp
           sourceImage: sourcePreview ?? undefined,
         }),
       })
-      const result = await res.json() as { images?: string[]; error?: string }
-      if (!res.ok) throw new Error(result.error ?? 'Generation failed')
-      setVariants(result.images ?? [])
+      const submitData = await submitRes.json() as { taskIds?: string[]; simulated?: boolean; error?: string }
+      if (!submitRes.ok) throw new Error(submitData.error ?? 'Submit failed')
+
+      const { taskIds = [], simulated } = submitData
+      setLoadingMsg('Generating…')
+
+      if (simulated) {
+        const pollRes = await fetch(`/api/generate-reference-image?taskIds=${taskIds.join(',')}`)
+        const pollData = await pollRes.json() as { images?: string[] }
+        setVariants(pollData.images ?? [])
+        return
+      }
+
+      const start = Date.now()
+      const deadline = start + 120_000
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 2500))
+        const elapsed = Math.round((Date.now() - start) / 1000)
+        const pollRes = await fetch(`/api/generate-reference-image?taskIds=${taskIds.join(',')}`)
+        if (!pollRes.ok) throw new Error(`Poll error ${pollRes.status}`)
+        const pollData = await pollRes.json() as { done: boolean; images?: string[]; error?: string; statuses?: Array<{id: string; status: string}> }
+        if (pollData.error) throw new Error(pollData.error)
+        if (pollData.done) {
+          if (pollData.images?.length) { setVariants(pollData.images); return }
+          throw new Error('Task completed but no images returned')
+        }
+        const statusStr = pollData.statuses?.map((s) => s.status).join(', ') ?? 'waiting'
+        setLoadingMsg(`${statusStr}… ${elapsed}s`)
+      }
+      throw new Error('Timed out — Runway took longer than 2 minutes')
     } catch (e) {
       setGenError(e instanceof Error ? e.message : 'Failed')
     } finally {
       setLoading(false)
+      setLoadingMsg('')
     }
   }
 
@@ -254,7 +284,7 @@ export function StyleLockNode({ id, data, selected }: NodeProps<StyleLockNodeTyp
                   className="nodrag flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary/15 py-2 text-[11.5px] font-medium text-primary hover:bg-primary/25 transition-colors disabled:opacity-50 disabled:pointer-events-none"
                 >
                   {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-                  {loading ? 'Generating…' : 'Generate mood board'}
+                  {loading ? (loadingMsg || 'Generating…') : 'Generate mood board'}
                 </button>
 
                 {genError && <p className="text-[10.5px] text-destructive">{genError}</p>}

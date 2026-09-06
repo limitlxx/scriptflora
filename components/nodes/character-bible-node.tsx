@@ -52,15 +52,22 @@ function ReferenceImageGenerator({
   const [sourcePreview, setSourcePreview] = useState<string | null>(null)
   const [variants, setVariants] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadingMsg, setLoadingMsg] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [count, setCount] = useState(2)
+  // ponytail: ref survives re-renders — lets us cancel the poll loop on unmount
+  const cancelRef = useRef(false)
+
+  // Cancel any in-flight poll on unmount
+  useEffect(() => { cancelRef.current = false; return () => { cancelRef.current = true } }, [])
 
   const generate = async () => {
     setLoading(true)
+    setLoadingMsg('Submitting…')
     setError(null)
     setVariants([])
     try {
-      const res = await fetch('/api/generate-reference-image', {
+      const submitRes = await fetch('/api/generate-reference-image', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -70,13 +77,52 @@ function ReferenceImageGenerator({
           sourceImage: sourcePreview ?? undefined,
         }),
       })
-      const data = await res.json() as { images?: string[]; error?: string }
-      if (!res.ok) throw new Error(data.error ?? 'Generation failed')
-      setVariants(data.images ?? [])
+      const submitData = await submitRes.json() as { taskIds?: string[]; simulated?: boolean; error?: string }
+      if (!submitRes.ok) throw new Error(submitData.error ?? 'Submit failed')
+
+      const { taskIds = [], simulated } = submitData
+      setLoadingMsg('Generating…')
+
+      if (simulated) {
+        const pollRes = await fetch(`/api/generate-reference-image?taskIds=${taskIds.join(',')}`)
+        const pollData = await pollRes.json() as { images?: string[] }
+        setVariants(pollData.images ?? [])
+        return
+      }
+
+      // Poll until done — show elapsed time
+      const start = Date.now()
+      const deadline = start + 120_000
+      while (Date.now() < deadline) {
+        if (cancelRef.current) return   // component unmounted — stop silently
+        await new Promise((r) => setTimeout(r, 2500))
+        if (cancelRef.current) return
+        const elapsed = Math.round((Date.now() - start) / 1000)
+        setLoadingMsg(`Generating… ${elapsed}s`)
+
+        const pollRes = await fetch(`/api/generate-reference-image?taskIds=${taskIds.join(',')}`)
+        if (!pollRes.ok) throw new Error(`Poll error ${pollRes.status}`)
+        const pollData = await pollRes.json() as { done: boolean; images?: string[]; error?: string; statuses?: Array<{id: string; status: string}> }
+
+        if (pollData.error) throw new Error(pollData.error)
+
+        if (pollData.done) {
+          if (pollData.images?.length) {
+            setVariants(pollData.images)
+            return
+          }
+          throw new Error('Task completed but no images returned')
+        }
+
+        const statusStr = pollData.statuses?.map((s) => s.status).join(', ') ?? 'waiting'
+        setLoadingMsg(`${statusStr}… ${elapsed}s`)
+      }
+      throw new Error('Timed out — Runway took longer than 2 minutes')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed')
     } finally {
       setLoading(false)
+      setLoadingMsg('')
     }
   }
 
@@ -209,7 +255,7 @@ function ReferenceImageGenerator({
             className="nodrag flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary/15 py-2 text-[11.5px] font-medium text-primary hover:bg-primary/25 transition-colors disabled:opacity-50 disabled:pointer-events-none"
           >
             {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-            {loading ? 'Generating…' : 'Generate reference'}
+            {loading ? (loadingMsg || 'Generating…') : 'Generate reference'}
           </button>
 
           {error && <p className="text-[10.5px] text-destructive">{error}</p>}

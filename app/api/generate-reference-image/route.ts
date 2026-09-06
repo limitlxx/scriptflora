@@ -1,103 +1,20 @@
 /**
- * POST /api/generate-reference-image
+ * POST /api/generate-reference-image  — submit tasks, return task IDs
+ * GET  /api/generate-reference-image?taskIds=id1,id2  — poll status
  *
- * Generates reference images (character sheet / style mood board)
- * using Runway Gen-4 Image via POST /v1/text_to_image.
- *
- * Async: submits a task, polls until SUCCEEDED/FAILED, returns image URLs.
- *
- * Body:
- *   prompt       – text description
- *   type         – 'character' | 'style'
- *   count        – variants (1–4, default 2). Runway doesn't support batch
- *                  natively so we fire N parallel tasks.
- *   sourceImage  – optional base64 data URL used as a reference image
- *
- * Requires: RUNWAY_API_KEY in .env.local
- * Without the key: returns placeholder images so the UI works in dev.
+ * Split into two calls so the route never blocks for >5s.
+ * Client submits → gets task IDs → polls until all SUCCEEDED.
  */
 
-const RUNWAY_API_BASE = 'https://api.dev.runwayml.com/v1'
-const RUNWAY_VERSION = '2024-11-06'
-// gen4_image_turbo is faster and cheaper; swap to gen4_image for higher quality
-const IMAGE_MODEL = 'gen4_image_turbo'
-const POLL_INTERVAL_MS = 2000
-const POLL_TIMEOUT_MS = 90_000
+const BASE = 'https://api.dev.runwayml.com/v1'
+const VER  = '2024-11-06'
+const MODEL = 'gen4_image_turbo'
 
-type RunwayTaskStatus = 'PENDING' | 'RUNNING' | 'SUCCEEDED' | 'FAILED' | 'CANCELLED'
-
-interface RunwayTask {
-  id: string
-  status: RunwayTaskStatus
-  output?: string[]
-  failure?: string
-  failureCode?: string
+function runwayHeaders(apiKey: string) {
+  return { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}`, 'X-Runway-Version': VER }
 }
 
-async function submitImageTask(
-  promptText: string,
-  referenceImages: Array<{ uri: string; tag?: string }>,
-  apiKey: string,
-): Promise<string> {
-  const body: Record<string, unknown> = {
-    model: IMAGE_MODEL,
-    promptText,
-    ratio: '1024:1024',
-  }
-  if (referenceImages.length > 0) {
-    body.referenceImages = referenceImages
-  }
-
-  const res = await fetch(`${RUNWAY_API_BASE}/text_to_image`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-      'X-Runway-Version': RUNWAY_VERSION,
-    },
-    body: JSON.stringify(body),
-  })
-
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: res.statusText }))
-    throw new Error((err as { message?: string }).message ?? `Runway error ${res.status}`)
-  }
-
-  const data = await res.json() as { id: string }
-  return data.id
-}
-
-async function pollTask(taskId: string, apiKey: string): Promise<string> {
-  const deadline = Date.now() + POLL_TIMEOUT_MS
-
-  while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
-
-    const res = await fetch(`${RUNWAY_API_BASE}/tasks/${taskId}`, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'X-Runway-Version': RUNWAY_VERSION,
-      },
-    })
-
-    if (!res.ok) throw new Error(`Poll error ${res.status}`)
-    const task = await res.json() as RunwayTask
-
-    if (task.status === 'SUCCEEDED') {
-      const url = task.output?.[0]
-      if (!url) throw new Error('Task succeeded but no output URL')
-      return url
-    }
-
-    if (task.status === 'FAILED' || task.status === 'CANCELLED') {
-      throw new Error(task.failure ?? `Task ${task.status.toLowerCase()}`)
-    }
-    // PENDING or RUNNING — keep polling
-  }
-
-  throw new Error('Image generation timed out — try again')
-}
-
+// ── POST — submit tasks ───────────────────────────────────────────────────────
 export async function POST(request: Request) {
   const cookieHeader = request.headers.get('cookie') ?? ''
   if (process.env.LWC_SECRET && !cookieHeader.includes('lwc_session=')) {
@@ -108,7 +25,7 @@ export async function POST(request: Request) {
     prompt: string
     type: 'character' | 'style'
     count?: number
-    sourceImage?: string  // base64 data URL
+    sourceImage?: string
   }
 
   const { prompt, type, count = 2, sourceImage } = body
@@ -116,51 +33,92 @@ export async function POST(request: Request) {
 
   const n = Math.min(Math.max(count, 1), 4)
 
-  // Enrich the prompt for the specific use case
   const enrichedPrompt = type === 'character'
-    ? `Character reference sheet. ${prompt}. Front and 3/4 view. Neutral studio background. Cinematic lighting. Clear facial features. Production-ready.`
-    : `Visual mood board. ${prompt}. Cinematic film production aesthetic. Rich colour, atmospheric lighting. Single coherent frame.`
+    ? `Character reference sheet. ${prompt}. Front and three-quarter view. Neutral studio background. Cinematic lighting. Production-ready.`
+    : `Visual mood board. ${prompt}. Cinematic film aesthetic. Rich colour, atmospheric lighting.`
 
   const apiKey = process.env.RUNWAY_API_KEY
-
-  // ── Simulation (no API key) ───────────────────────────────────────────────
   if (!apiKey) {
-    const placeholders = Array.from({ length: n }, (_, i) =>
-      `https://placehold.co/512x512/1a1a2e/a78bfa?text=${encodeURIComponent(
-        type === 'character' ? `Character ${i + 1}` : `Style ${i + 1}`,
-      )}`,
-    )
-    return Response.json({ images: placeholders, simulated: true })
+    // Simulation — return fake task IDs the GET handler will resolve immediately
+    const simIds = Array.from({ length: n }, (_, i) => `sim-${i}-${Date.now()}`)
+    return Response.json({ taskIds: simIds, simulated: true })
   }
 
-  // ── Real Runway call ──────────────────────────────────────────────────────
-  // Build reference images array. If a source image is provided, pass it
-  // as the first reference (untagged = style influence; tagged = subject anchor).
   const refImages: Array<{ uri: string; tag?: string }> = []
   if (sourceImage) {
-    // For characters: tag the source so the model anchors on the subject
-    if (type === 'character') {
-      refImages.push({ uri: sourceImage, tag: 'subject' })
-    } else {
-      refImages.push({ uri: sourceImage })  // untagged = style influence
-    }
+    refImages.push(type === 'character' ? { uri: sourceImage, tag: 'subject' } : { uri: sourceImage })
   }
 
+  const payload: Record<string, unknown> = { model: MODEL, promptText: enrichedPrompt, ratio: '1024:1024' }
+  if (refImages.length > 0) payload.referenceImages = refImages
+
   try {
-    // Submit N tasks in parallel
-    const taskIds = await Promise.all(
-      Array.from({ length: n }, () => submitImageTask(enrichedPrompt, refImages, apiKey)),
+    // Submit all tasks in parallel
+    const results = await Promise.all(
+      Array.from({ length: n }, async () => {
+        const res = await fetch(`${BASE}/text_to_image`, {
+          method: 'POST',
+          headers: runwayHeaders(apiKey),
+          body: JSON.stringify(payload),
+        })
+        const text = await res.text()
+        if (!res.ok) throw new Error(`Runway submit ${res.status}: ${text.slice(0, 200)}`)
+        return (JSON.parse(text) as { id: string }).id
+      })
     )
-
-    // Poll all tasks in parallel
-    const imageUrls = await Promise.all(taskIds.map((id) => pollTask(id, apiKey)))
-
-    return Response.json({ images: imageUrls })
+    return Response.json({ taskIds: results })
   } catch (err) {
-    console.error('[/api/generate-reference-image]', err)
-    return Response.json(
-      { error: err instanceof Error ? err.message : 'Image generation failed' },
-      { status: 500 },
+    const msg = err instanceof Error ? err.message : 'Submit failed'
+    console.error('[generate-reference-image POST]', msg)
+    return Response.json({ error: msg }, { status: 500 })
+  }
+}
+
+// ── GET — poll tasks ──────────────────────────────────────────────────────────
+export async function GET(request: Request) {
+  const taskIds = new URL(request.url).searchParams.get('taskIds')?.split(',').filter(Boolean) ?? []
+  if (taskIds.length === 0) return Response.json({ error: 'taskIds required' }, { status: 400 })
+
+  // Simulation — return placeholder images immediately
+  if (taskIds[0].startsWith('sim-')) {
+    const images = taskIds.map((id) => {
+      const i = parseInt(id.split('-')[1] ?? '0')
+      return `https://placehold.co/512x512/1a1a2e/a78bfa?text=Variant+${i + 1}`
+    })
+    return Response.json({ done: true, images, simulated: true })
+  }
+
+  const apiKey = process.env.RUNWAY_API_KEY
+  if (!apiKey) return Response.json({ error: 'RUNWAY_API_KEY not set' }, { status: 500 })
+
+  try {
+    const statuses = await Promise.all(
+      taskIds.map(async (id) => {
+        const res = await fetch(`${BASE}/tasks/${id}`, {
+          headers: { Authorization: `Bearer ${apiKey}`, 'X-Runway-Version': VER },
+        })
+        if (!res.ok) throw new Error(`Poll ${id} error ${res.status}`)
+        return res.json() as Promise<{ id: string; status: string; output?: string[]; failure?: string }>
+      })
     )
+
+    const done = statuses.every((t) => t.status === 'SUCCEEDED' || t.status === 'FAILED' || t.status === 'CANCELLED')
+    const failed = statuses.find((t) => t.status === 'FAILED' || t.status === 'CANCELLED')
+
+    if (failed) {
+      return Response.json({ done: true, error: failed.failure ?? `Task ${failed.status}` })
+    }
+
+    if (done) {
+      const images = statuses.map((t) => t.output?.[0] ?? '').filter(Boolean)
+      return Response.json({ done: true, images })
+    }
+
+    // Still running — return progress
+    return Response.json({ done: false, statuses: statuses.map((t) => ({ id: t.id, status: t.status })) })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Poll failed'
+    console.error('[generate-reference-image GET]', msg)
+    return Response.json({ error: msg }, { status: 500 })
   }
 }
