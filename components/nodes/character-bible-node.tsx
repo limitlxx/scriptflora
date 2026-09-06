@@ -3,7 +3,7 @@
 import { type NodeProps } from '@xyflow/react'
 import {
   Check, ChevronDown, ChevronUp, Image as ImageIcon,
-  Lock, LockOpen, Mic, Plus, Trash2, User, Users,
+  Loader2, Lock, LockOpen, Mic, Plus, Sparkles, Trash2, User, Users, X,
 } from 'lucide-react'
 import { useState } from 'react'
 import { nanoid } from 'nanoid'
@@ -29,6 +29,221 @@ function emptyCharacter(): CharacterEntry {
     status: 'draft',
   }
 }
+
+// ── Reference Image Generator ─────────────────────────────────────────────────
+
+function ReferenceImageGenerator({
+  existingUrl,
+  disabled,
+  prompt: autoPrompt,
+  type,
+  onSelect,
+  onRemove,
+}: {
+  existingUrl?: string
+  disabled: boolean
+  prompt: string
+  type: 'character' | 'style'
+  onSelect: (url: string) => void
+  onRemove: () => void
+}) {
+  const [genOpen, setGenOpen] = useState(false)
+  const [customPrompt, setCustomPrompt] = useState('')
+  const [sourcePreview, setSourcePreview] = useState<string | null>(null)
+  const [variants, setVariants] = useState<string[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [count, setCount] = useState(2)
+
+  const generate = async () => {
+    setLoading(true)
+    setError(null)
+    setVariants([])
+    try {
+      const res = await fetch('/api/generate-reference-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          prompt: customPrompt.trim() || autoPrompt,
+          type,
+          count,
+          sourceImage: sourcePreview ?? undefined,
+        }),
+      })
+      const data = await res.json() as { images?: string[]; error?: string }
+      if (!res.ok) throw new Error(data.error ?? 'Generation failed')
+      setVariants(data.images ?? [])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleFileUpload = (file: File) => {
+    const reader = new FileReader()
+    reader.onload = () => setSourcePreview(reader.result as string)
+    reader.readAsDataURL(file)
+  }
+
+  if (existingUrl) {
+    return (
+      <div className="space-y-2">
+        <div className="group relative overflow-hidden rounded-lg border border-success/25">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={existingUrl} alt="Reference" className="h-32 w-full object-cover" />
+          {!disabled && (
+            <button type="button" onClick={onRemove}
+              className="absolute right-1.5 top-1.5 flex items-center gap-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100"
+            >
+              <X className="size-2.5" /> Remove
+            </button>
+          )}
+          <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-md bg-success/20 px-1.5 py-0.5 text-[9px] font-medium text-success">
+            <Check className="size-2.5" /> Set
+          </span>
+        </div>
+        {!disabled && (
+          <button type="button" onClick={() => { setGenOpen(true); setVariants([]) }}
+            className="nodrag flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/[0.07] py-1.5 text-[10.5px] text-muted-foreground hover:border-primary/30 hover:text-primary transition-colors"
+          >
+            <Sparkles className="size-3" /> Regenerate variants
+          </button>
+        )}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-2">
+      {/* Upload or generate toggle */}
+      <div className="flex gap-1.5">
+        <label className={cn(
+          'flex flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed py-2.5',
+          'border-white/[0.12] text-[10.5px] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground',
+          disabled && 'pointer-events-none opacity-40',
+        )}>
+          <ImageIcon className="size-3.5" />
+          Upload image
+          <input type="file" accept="image/*" className="hidden" disabled={disabled}
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (!file) return
+              handleFileUpload(file)
+              onSelect(URL.createObjectURL(file))
+              e.target.value = ''
+            }}
+          />
+        </label>
+        <button type="button" disabled={disabled}
+          onClick={() => setGenOpen((v) => !v)}
+          className={cn(
+            'nodrag flex flex-1 items-center justify-center gap-1.5 rounded-lg border py-2.5 text-[10.5px] transition-colors',
+            genOpen
+              ? 'border-primary/40 bg-primary/10 text-primary'
+              : 'border-white/[0.12] text-muted-foreground hover:border-primary/30 hover:text-foreground',
+            disabled && 'pointer-events-none opacity-40',
+          )}
+        >
+          <Sparkles className="size-3.5" />
+          Generate
+        </button>
+      </div>
+
+      {/* Generator panel */}
+      {genOpen && !disabled && (
+        <div className="space-y-2.5 rounded-xl border border-white/[0.08] bg-black/20 p-3">
+          {/* Source image (optional, for variation) */}
+          <div>
+            <FieldLabel>Source image (optional — for variation)</FieldLabel>
+            {sourcePreview ? (
+              <div className="group relative overflow-hidden rounded-lg">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={sourcePreview} alt="Source" className="h-20 w-full object-cover rounded-lg" />
+                <button type="button" onClick={() => setSourcePreview(null)}
+                  className="absolute right-1 top-1 rounded-md bg-black/70 p-0.5 text-white opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="size-3" />
+                </button>
+              </div>
+            ) : (
+              <label className="flex cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-dashed border-white/[0.10] py-2 text-[10.5px] text-muted-foreground hover:border-primary/30 hover:text-foreground transition-colors">
+                <ImageIcon className="size-3" /> Upload source image
+                <input type="file" accept="image/*" className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFileUpload(f); e.target.value = '' }}
+                />
+              </label>
+            )}
+          </div>
+
+          {/* Custom prompt */}
+          <div>
+            <FieldLabel>Prompt override (or leave blank to use description)</FieldLabel>
+            <textarea
+              value={customPrompt}
+              onChange={(e) => setCustomPrompt(e.target.value)}
+              rows={2}
+              placeholder={autoPrompt || `Describe the ${type === 'character' ? 'character' : 'visual style'}…`}
+              className={cn(fieldClass, 'resize-none text-[11px]')}
+            />
+          </div>
+
+          {/* Variant count */}
+          <div className="flex items-center gap-2">
+            <FieldLabel>Variants</FieldLabel>
+            <div className="flex gap-1">
+              {[1, 2, 3, 4].map((n) => (
+                <button key={n} type="button" onClick={() => setCount(n)}
+                  className={cn(
+                    'nodrag size-6 rounded-md text-[11px] transition-colors',
+                    count === n ? 'bg-primary/25 text-primary' : 'bg-white/[0.05] text-muted-foreground hover:bg-white/[0.09]',
+                  )}
+                >
+                  {n}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button type="button" onClick={() => void generate()} disabled={loading}
+            className="nodrag flex w-full items-center justify-center gap-1.5 rounded-lg bg-primary/15 py-2 text-[11.5px] font-medium text-primary hover:bg-primary/25 transition-colors disabled:opacity-50 disabled:pointer-events-none"
+          >
+            {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+            {loading ? 'Generating…' : 'Generate reference'}
+          </button>
+
+          {error && <p className="text-[10.5px] text-destructive">{error}</p>}
+
+          {/* Variants grid */}
+          {variants.length > 0 && (
+            <div>
+              <FieldLabel>Select a variant to use</FieldLabel>
+              <div className={cn('grid gap-2', variants.length === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
+                {variants.map((url, i) => (
+                  <button key={i} type="button"
+                    onClick={() => { onSelect(url); setGenOpen(false) }}
+                    className="nodrag group relative overflow-hidden rounded-lg border border-white/[0.08] transition-colors hover:border-primary/50"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={url} alt={`Variant ${i + 1}`} className="aspect-square w-full object-cover" />
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                      <span className="rounded-lg bg-primary/90 px-2.5 py-1 text-[11px] font-medium text-white">Use this</span>
+                    </div>
+                    <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1.5 py-0.5 text-[9px] text-white">
+                      {i + 1}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── CharacterCard ─────────────────────────────────────────────────────────────
 
 function CharacterCard({
   char,
@@ -148,43 +363,14 @@ function CharacterCard({
                 )}
               </span>
             </FieldLabel>
-            {char.referenceImageUrl ? (
-              <div className="group relative overflow-hidden rounded-lg border border-success/25">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={char.referenceImageUrl} alt={`${char.name} reference`}
-                  className="h-28 w-full object-cover" />
-                {!locked && !disabled && (
-                  <button type="button"
-                    onClick={() => onChange({ referenceImageUrl: undefined })}
-                    className="absolute right-1.5 top-1.5 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] text-white opacity-0 transition-opacity group-hover:opacity-100"
-                  >
-                    Remove
-                  </button>
-                )}
-                <span className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded-md bg-success/20 px-1.5 py-0.5 text-[9px] font-medium text-success">
-                  <Check className="size-2.5" /> Image locked
-                </span>
-              </div>
-            ) : (
-              <label className={cn(
-                'flex cursor-pointer flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed py-4',
-                'border-white/[0.12] text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground',
-                (disabled || locked) && 'pointer-events-none opacity-40',
-              )}>
-                <ImageIcon className="size-4" />
-                <span className="text-[10.5px]">Upload reference image</span>
-                <input type="file" accept="image/*" className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    const reader = new FileReader()
-                    reader.onload = () => onChange({ referenceImageUrl: reader.result as string })
-                    reader.readAsDataURL(file)
-                    e.target.value = ''
-                  }}
-                />
-              </label>
-            )}
+            <ReferenceImageGenerator
+              existingUrl={char.referenceImageUrl}
+              disabled={disabled || locked}
+              prompt={[char.name, char.role, char.visualDescription, char.wardrobe].filter(Boolean).join('. ')}
+              type="character"
+              onSelect={(url) => onChange({ referenceImageUrl: url })}
+              onRemove={() => onChange({ referenceImageUrl: undefined })}
+            />
           </div>
 
           {/* Voice profile */}

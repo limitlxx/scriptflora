@@ -1,7 +1,6 @@
 'use client'
 
 import {
-  AlertCircle,
   Check,
   ChevronDown,
   Cloud,
@@ -11,7 +10,7 @@ import {
   Sparkles,
   Zap,
 } from 'lucide-react'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Logo } from '@/components/logo'
@@ -39,20 +38,19 @@ export function TopBar({
   nodeCount,
   onGenerate,
   generateState,
-  generateError,
-  preflightMessage,
   settings,
   onSettingsChange,
+  panelToggles,
 }: {
   projectName: string
   onProjectNameChange: (name: string) => void
   nodeCount: number
   onGenerate: () => void
   generateState: GenerateState
-  generateError?: string
-  preflightMessage?: string
   settings: GenerationSettings
   onSettingsChange: (s: GenerationSettings) => void
+  /** P1 — panel toggle buttons rendered in the top bar left section */
+  panelToggles?: ReactNode
 }) {
   const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -80,7 +78,6 @@ export function TopBar({
 
   const busy = generateState === 'generating'
   const hasError = generateState === 'preflight-error' || generateState === 'error'
-  const errorMsg = preflightMessage ?? generateError
   const fastSupported = SUPPORTS_FAST.has(settings.model)
 
   return (
@@ -103,21 +100,14 @@ export function TopBar({
           <Cloud className="size-3" />
           Saved
         </span>
+        {/* P1 — panel toggle buttons */}
+        {panelToggles && (
+          <span className="hidden items-center gap-1 sm:flex">{panelToggles}</span>
+        )}
       </div>
 
       {/* centre — generation controls */}
       <div className="flex items-center gap-1.5">
-        {hasError && errorMsg && (
-          <span
-            className="flex max-w-[200px] items-center gap-1.5 truncate text-[10.5px] text-destructive"
-            role="alert"
-            aria-live="assertive"
-          >
-            <AlertCircle className="size-3 shrink-0" />
-            <span className="truncate">{errorMsg}</span>
-          </span>
-        )}
-
         {/* model picker */}
         <div className="relative">
           <select

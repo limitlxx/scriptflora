@@ -29,7 +29,7 @@ Most AI writing tools produce a single block of text that's hard to partially ed
   - **Series Script Structure** — Series Hook → Episode Outline → Act Beat → Series Visual Notes → Episode Close; designed for episodic drama and long-form series with multi-episode continuity planning
 - **Per-node regeneration** — regenerate any single node (e.g. just the Hook) while the full brief, key facts, and locked/upstream content are preserved as context.
 - **Lock / Edit / Approve controls** — lock strong sections so they're never overwritten, edit inline, and mark nodes as approved.
-- **Continuity & fact protection** — key facts from the brief are injected into every generation call, plus a basic Continuity Checker node flags missing facts or inconsistencies.
+- **Continuity & fact protection** — key facts from the brief are injected into every generation call. The Continuity Checker node flags missing facts or inconsistencies, and each error/warning issue now shows an **Apply fix** button: clicking it calls `POST /api/continuity-fix` with the issue, the target node's content, and the full script context; a proposed rewrite is shown inline for review — accept to patch the node, dismiss to ignore. Locked/approved nodes are protected and cannot be patched.
 - **Multi-format output** — generate multiple versions of a script (e.g. short-form vertical vs. long-form) from the same master content.
 - **Export** — copy to clipboard or download as clean Markdown.
 - **Local-first persistence** — projects are saved in the browser (Zustand + IndexedDB), with support for multiple saved scripts and fast restore on reload.
@@ -57,7 +57,7 @@ Most AI writing tools produce a single block of text that's hard to partially ed
 | Auth & AI Access | [Login with ChatGPT](https://github.com/opencoredev/login-with-chatgpt) SDK, proxied through the app's backend |
 | AI SDK | [Vercel AI SDK](https://sdk.vercel.ai/) (`streamText` / `generateObject`) |
 
-Authentication uses each user's own ChatGPT subscription — tokens stay server-side in an HttpOnly cookie and never reach the browser. All generation requests are proxied through the app's backend at `/api/chatgpt/[...path]`.
+Authentication uses each user's own ChatGPT subscription — tokens stay server-side in an HttpOnly cookie and never reach the browser. All generation requests are proxied through the app's backend at `/api/chatgpt/[...path]`. The canvas polls `GET /api/chatgpt/session` every 4 minutes to detect session expiry; on a 401 response the user is redirected to `/?session=expired`.
 
 ## Getting Started
 
@@ -85,6 +85,10 @@ LWC_SECRET=your-stable-secret
 Optional variables for media generation:
 
 ```bash
+# Phase 1/2 — Reference image generation (character sheets, style mood boards)
+# Uses OpenAI Images API (gpt-image-1). When absent, placeholder images are returned.
+OPENAI_API_KEY=
+
 # Phase 3 — Runway video generation (simulated when absent)
 RUNWAY_API_KEY=
 
@@ -120,6 +124,7 @@ scriptflora/
 ├── components/     # UI and canvas/node components
 │   ├── marketplace/marketplace-client.tsx  # Client component: feed fetch, search/filter, install actions
 ├── lib/            # Utilities, state store, and AI/generation helpers
+│   ├── toast.ts           # Lightweight event-bus toast store; fire `toast.info/success/warning/error(title, opts?)` from anywhere; renders via a `Toaster` component that subscribes to the `sf:toast` window event; no Zustand dependency
 │   ├── skill-studio.ts    # Phase S1 — Skills Studio draft skill store (localStorage, `sf:studio:skills`)
 │   ├── marketplace.ts     # Phase S3 — Marketplace feed types + client helpers (`fetchMarketplaceFeed`, `filterSkills`)
 ├── components/skills-studio/  # Skills Studio UI components
@@ -140,7 +145,11 @@ The current MVP intentionally excludes:
 
 - Skills Studio UI (`/app/skills`) — the skill list view (`components/skills-studio/skill-list-client.tsx`) is implemented with filter tabs (All / Drafts / Published / Archived), create-new-skill flow (with family picker), archive/restore, and delete; the skill editor (`components/skills-studio/skill-editor-client.tsx`) is implemented with five tabs: **Manifest** (skill ID, publisher, tagline, family, requirements, permissions), **Instructions** (system prompt editor), **Recipe** (stage node builder with key/kind/title/dependsOn), **Test run** (isolated sandbox execution against a test brief — outputs marked `origin: test`, never written to real projects), and **Version** (semver bump, changelog draft, publish gate that requires a successful test run); **Team Library** (`/app/skills/library`) — implemented in `components/skills-studio/team-library-client.tsx`; two tabs: **Installed** (browse installed skills with trust tier badges — Official / Verified / Community — toggle enable/disable, uninstall non-built-ins, export any skill as a JSON package for sharing, import `.json` packages from team members with permission validation against the Community tier, and review declared permissions per skill) and **Audit log** (timestamped record of every install, uninstall, enable, and disable action); built-in skills are always present and cannot be uninstalled
 - Real-time multi-user collaboration or cloud project sync
-- HyperFrames node UI (queued for Phase 11; the render route `POST /api/hyperframes/render` and status polling route `GET /api/hyperframes/status?taskId=` are implemented with three modes: **simulated** (no keys — resolves immediately), **HeyGen Cloud** (`HEYGEN_API_KEY` set), **Local CLI** (`HYPERFRAMES_LOCAL=true` — requires `npm install -g @heygen/hyperframes`))
+- HyperFrames node UI — implemented (Phase 11); render route `POST /api/hyperframes/render` and status polling `GET /api/hyperframes/status?taskId=` support three modes: **simulated** (no keys), **HeyGen Cloud** (`HEYGEN_API_KEY` set), **Local CLI** (`HYPERFRAMES_LOCAL=true`)
+- `POST /api/generate-reference-image` — generates character reference sheets or style mood boards using OpenAI Images API (`gpt-image-1`); accepts `prompt`, `type` (`character` | `style`), `count` (1–4), and an optional `sourceImage` base64 data URL for image-to-image edits; falls back to placeholder images when `OPENAI_API_KEY` is absent so the Character Bible UI works without a key; requires an active LWC session
+- `POST /api/continuity-fix` — given a specific continuity issue (id, severity, message, source), the affected node's content, the full script context, and the brief's key facts, returns `{ fixed: string }` — a rewritten version of that node that resolves the issue; the Continuity Checker node shows this proposal inline and requires explicit "Accept" before patching; locked/approved nodes are blocked server-side and client-side; requires an active LWC session
+- **ScriptFlora Coach (C1)** — in progress; `lib/coach-state.ts` is implemented: `deriveCoachState(nodes, hasChatGPTLogin, route)` reads the live canvas node list and returns a typed `CoachState` snapshot (brief status, character lock state, skill selection, shot/sequence progress, HyperFrames status, and derived blockers); `coachStateToText(s)` converts the snapshot to a plain-text summary for injection into the coach system prompt; `POST /api/coach` is implemented — it collects the full response via the LWC proxy (`createChatGPTProxyProvider` + `streamText`) using the user's own ChatGPT session and returns `{ content: string }` as JSON (same pattern as `/api/generate`); returns `401` if the response is empty, which typically indicates session expiry; loads and caches knowledge-bank docs from `public/coach-docs/` (director-method, nodes-reference, skills-guide, gates-and-blockers, hyperframes-guide), and enforces the same safety rules as the Coach PRD; the `CoachRail` UI and `CoachSpotlight` overlay are not yet implemented
+- **Detachable Panel System (P1)** — in progress; `NodesLibraryPanel`, `InspectorPanel`, and `PanelToggleButton` components are wired into `script-flow-canvas.tsx`; the currently selected node is tracked via `useMemo` and passed to the Inspector panel; panel layout state managed by `lib/panel-store` (Zustand, persisted to localStorage); `panelActions` exposes `resetPosition(id)` (snap a panel back to its default position) and `stackAll()` (cascade all visible floating panels with an offset so none are hidden behind each other); a **canvas right-click context menu** (`CanvasContextMenu` in `script-flow-canvas.tsx`) provides quick access to "Add node here", "Stack all panels", and "Reset all panels" directly from the canvas; generation errors and preflight messages are surfaced via `<ToastStack />` (rendered inside the canvas) rather than inline props on `TopBar`
 - Actual video generation (Runway integration exists behind `RUNWAY_API_KEY`; HeyGen HyperFrames packaging requires `HEYGEN_API_KEY`)
 - Advanced React Flow features (grouping, custom edge routing, etc.)
 - Mobile-first responsive design

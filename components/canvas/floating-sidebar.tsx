@@ -404,60 +404,8 @@ export function FloatingSidebar({
           })}
         </nav>
 
-        {/* Node library — grouped and collapsible */}
-        <section className="flex min-h-0 flex-1 flex-col scroll-slim overflow-y-auto" aria-label="Node library">
-          {!collapsed && (
-            <div className="flex items-center justify-between px-2.5 pb-1">
-              <span className="text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground/70">Nodes</span>
-              <Move className="size-3 text-muted-foreground/50" />
-            </div>
-          )}
-
-          {collapsed ? (
-            // Collapsed: flat icon-only list
-            NODE_GROUPS.flatMap((g) => g.items).map(({ label, icon: Icon, request }) => (
-              <button key={label} type="button" draggable
-                onDragStart={(e) => startDrag(e, request)}
-                onClick={(e) => onDropNode(request, e)}
-                title={label}
-                className="flex justify-center py-1.5 text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
-              >
-                <Icon className="size-3.5 shrink-0 text-muted-foreground/80" />
-              </button>
-            ))
-          ) : (
-            NODE_GROUPS.map((group) => {
-              const isOpen = openGroups.has(group.heading)
-              return (
-                <div key={group.heading} className="mb-0.5">
-                  <button type="button" onClick={() => toggleGroup(group.heading)}
-                    className="flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 transition-colors hover:bg-white/[0.04]"
-                  >
-                    <span className="text-[9.5px] font-semibold uppercase tracking-[0.12em] text-muted-foreground/55">
-                      {group.heading}
-                    </span>
-                    <ChevronDown className={cn('size-3 text-muted-foreground/35 transition-transform duration-200', isOpen && 'rotate-180')} />
-                  </button>
-                  {isOpen && (
-                    <div className="mb-1 ml-2 flex flex-col gap-0.5 border-l border-white/[0.06] pl-2">
-                      {group.items.map(({ label, icon: Icon, request }) => (
-                        <button key={label} type="button" draggable
-                          onDragStart={(e) => startDrag(e, request)}
-                          onClick={(e) => onDropNode(request, e)}
-                          title="Drag to canvas"
-                          className="flex items-center gap-2 rounded-lg px-2 py-1.5 text-left text-[11px] text-muted-foreground transition-colors hover:bg-white/[0.06] hover:text-foreground"
-                        >
-                          <Icon className="size-3.5 shrink-0 text-muted-foreground/70" />
-                          <span className="truncate">{label}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })
-          )}
-        </section>
+        {/* Node library removed — now lives in the detachable Nodes Library panel (P1).
+            Use the "Nodes" toggle button in the top bar to show/hide it. */}
       </div>
     </aside>
   )

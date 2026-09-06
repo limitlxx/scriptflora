@@ -55,12 +55,23 @@ import { SeriesArcNode } from '@/components/nodes/series-arc-node'
 import { ProjectPackNode } from '@/components/nodes/project-pack-node'
 import { SocialVariantsNode } from '@/components/nodes/social-variants-node'
 import { TeamWorkspaceNode } from '@/components/nodes/team-workspace-node'
-import { HyperFramesNode } from '@/components/nodes/hyperframes-node' 
+import { HyperFramesNode } from '@/components/nodes/hyperframes-node'
+// Feature P1 — Panel system
+import { NodesLibraryPanel } from '@/components/panels/nodes-library-panel'
+import { InspectorPanel } from '@/components/panels/inspector-panel'
+import { CoachPanel } from '@/components/panels/coach-panel'
+import { PanelToggleButton } from '@/components/panels/panel-toggle-button'
+import { panelActions } from '@/lib/panel-store'
+import { deriveCoachState } from '@/lib/coach-state'
+import { useAuth } from '@/components/auth-context'
+import { Bot, Info, Layers, LocateFixed } from 'lucide-react'
 import { TopBar, type GenerateState, type GenerationSettings } from './top-bar'
 import { CanvasControls, type CanvasMode } from './canvas-controls'
 import { AddNodeMenu, type AddNodeRequest } from './add-node-menu'
 import { EmptyState } from './empty-state'
 import { FloatingSidebar } from './floating-sidebar'
+import { ToastStack } from './toast-stack'
+import { toast } from '@/lib/toast'
 import { nanoid } from 'nanoid'
 
 const nodeTypes: NodeTypes = {
@@ -129,6 +140,64 @@ function seedIdCounter(nodes: ScriptFloraNode[]) {
     if (!isNaN(num) && num > idCounter) idCounter = num
   }
 }
+
+// ── Canvas right-click context menu ──────────────────────────────────────────
+
+function CanvasContextMenu({
+  x, y,
+  onAddNode,
+  onClose,
+}: {
+  x: number
+  y: number
+  onAddNode: () => void
+  onClose: () => void
+}) {
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const down = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) onClose() }
+    const key  = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    document.addEventListener('mousedown', down)
+    document.addEventListener('keydown', key)
+    return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key) }
+  }, [onClose])
+
+  const left = Math.min(x, window.innerWidth  - 200)
+  const top  = Math.min(y, window.innerHeight - 200)
+
+  const menuItem = (label: string, icon: React.ReactNode, action: () => void) => (
+    <button
+      key={label}
+      type="button"
+      role="menuitem"
+      onClick={() => { action(); onClose() }}
+      className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-foreground/80 transition-colors hover:bg-white/[0.07] hover:text-foreground"
+    >
+      {icon}
+      {label}
+    </button>
+  )
+
+  return (
+    <div
+      ref={menuRef}
+      role="menu"
+      aria-label="Canvas options"
+      style={{ position: 'fixed', left, top, zIndex: 9999, width: 192 }}
+      className="animate-in fade-in-0 zoom-in-95 flex flex-col overflow-hidden rounded-xl border border-white/[0.12] bg-[oklch(0.16_0.005_285/0.97)] py-1 shadow-[0_20px_60px_-12px_oklch(0_0_0/0.8)] backdrop-blur-2xl duration-100"
+    >
+      {menuItem('Add node here', <Layers className="size-3.5 shrink-0 opacity-60" />, onAddNode)}
+      <div className="my-1 h-px bg-white/[0.07]" role="separator" />
+      {menuItem('Stack all panels', <Layers className="size-3.5 shrink-0 opacity-60" />, () => panelActions.stackAll())}
+      {menuItem('Reset all panels', <LocateFixed className="size-3.5 shrink-0 opacity-60" />, () => {
+        for (const id of ['nodes-library', 'inspector', 'coach', 'assets']) panelActions.resetToDefault(id)
+        window.dispatchEvent(new CustomEvent('sf:panels:change'))
+      })}
+    </div>
+  )
+}
+
 
 function buildNode(request: AddNodeRequest, position: { x: number; y: number }): ScriptFloraNode {
   const { type, kind } = request
@@ -394,11 +463,28 @@ function Flow({ projectId }: { projectId: string }) {
   })
 
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null)
   const [canvasMode, setCanvasMode] = useState<CanvasMode>('pointer')
   const [showHelp, setShowHelp] = useState(false)
   const [generateState, setGenerateState] = useState<GenerateState>('idle')
-  const [generateError, setGenerateError] = useState<string | undefined>()
-  const [preflightMessage, setPreflightMessage] = useState<string | undefined>()
+
+  // C1 — auth for Coach state
+  const auth = useAuth()
+  const hasChatGPTLogin = auth.status === 'authenticated'
+
+  // P1 — track selected node for Inspector panel
+  const selectedNode = useMemo(
+    () => nodes.find((n) => n.selected) ?? null,
+    [nodes]
+  )
+
+  // C1 — derive coach state from canvas nodes
+  const coachState = useMemo(
+    () => deriveCoachState(nodes, hasChatGPTLogin, '/canvas'),
+    // ponytail: recompute only when nodes array reference changes (saved per frame)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [nodes, hasChatGPTLogin],
+  )
 
   // Single source of truth for generation settings — persisted to localStorage
   const [settings, setSettings] = useState<GenerationSettings>(() => {
@@ -436,6 +522,25 @@ function Flow({ projectId }: { projectId: string }) {
     updateProject(projectId, { nodeCount: nodes.filter((n) => n.type === 'content').length })
   }, [nodes, edges, projectId])
 
+  // Session keep-alive check — poll every 4 min; redirect on expiry
+  // ponytail: 4 min < typical 5-min idle timeout; single HEAD-like GET is cheap
+  useEffect(() => {
+    if (!process.env.NEXT_PUBLIC_LWC_ENABLED && !document.cookie.includes('lwc_session=')) return
+    const check = async () => {
+      try {
+        const res = await fetch('/api/chatgpt/session', { method: 'GET', credentials: 'include' })
+        if (res.status === 401) window.location.href = '/?session=expired'
+      } catch { /* network error — don't log out, just skip */ }
+    }
+    const id = window.setInterval(check, 4 * 60 * 1000)
+    return () => window.clearInterval(id)
+  }, [])
+
+  // P1 — auto-show Inspector panel when a node is selected
+  useEffect(() => {
+    if (selectedNode) panelActions.setVisible('inspector', true)
+  }, [selectedNode?.id])
+
   useEffect(() => () => { for (const t of timers.current) window.clearTimeout(t) }, [])
 
   // ── Keyboard shortcuts ──────────────────────────────────────────────────────
@@ -452,10 +557,15 @@ function Flow({ projectId }: { projectId: string }) {
       if (e.key === '?') { e.preventDefault(); setShowHelp((v) => !v); return }
       // Escape — close help or deselect
       if (e.key === 'Escape') { setShowHelp(false); return }
+      // Cmd/Ctrl+J — toggle Coach panel
+      if (meta && e.key === 'j') { e.preventDefault(); panelActions.setVisible('coach', true); panelActions.bringToFront('coach'); return }
 
-      // Delete / Backspace — delete selected nodes (locked nodes are skipped)
+      // Delete / Backspace — delete selected nodes (locked nodes skipped) + selected edges
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault()
+        // Delete selected edges first
+        setEdges((cur) => cur.filter((ed) => !ed.selected))
+        // Then delete selected unlocked nodes and their connected edges
         setNodes((cur) => {
           const toDelete = new Set(cur.filter((n) => n.selected && !n.data.locked).map((n) => n.id))
           if (toDelete.size === 0) return cur
@@ -559,8 +669,9 @@ function Flow({ projectId }: { projectId: string }) {
     const prog = window.setInterval(() => { p = Math.min(p + 8, 85); update(id, { progress: p }) }, 200)
 
     const brief = briefNode.data as BriefNodeData
+    const nodePrompt = d.prompt?.trim() ? `\n\nNode-level prompt override: ${d.prompt.trim()}` : ''
     const req: GenerationRequest = {
-      brief: { ...brief, additionalNotes: `${brief.additionalNotes ?? ''}\n\nRegenerate only: "${d.label}" (stageKey: ${d.stageKey ?? d.kind}).`.trim() },
+      brief: { ...brief, additionalNotes: `${brief.additionalNotes ?? ''}\n\nRegenerate only: "${d.label}" (stageKey: ${d.stageKey ?? d.kind}).${nodePrompt}`.trim() },
       skill,
       skillMarkdown: (skillNode.data as { skillMarkdown?: string }).skillMarkdown ?? '',
       existingContent: { [d.stageKey ?? '']: d.content },
@@ -656,31 +767,32 @@ function Flow({ projectId }: { projectId: string }) {
     const skill = skillNode?.type === 'skill' ? (skillNode.data as { selected: SkillId | null }).selected : null
 
     if (!skillNode || !skill) {
-      setPreflightMessage('Add a Skill node and select Standard or Auteur.')
+      toast.warning('No skill selected', { message: 'Add a Skill node and select Standard or Auteur.' })
       setGenerateState('preflight-error')
       return
     }
     const briefNode = nodes.find((n) => n.type === 'brief' && edges.some((e) => e.source === n.id && e.target === skillNode.id))
     if (!briefNode || briefNode.type !== 'brief') {
-      setPreflightMessage('Connect a Brief node to the Skill node first.')
+      toast.warning('Brief not connected', { message: 'Connect a Brief node to the Skill node first.' })
       setGenerateState('preflight-error')
       return
     }
     const brief = briefNode.data as BriefNodeData
     if (!brief.title && !brief.objective) {
-      setPreflightMessage('Fill in at least a title or objective in the Brief.')
+      toast.warning('Brief is empty', { message: 'Fill in at least a title or objective in the Brief.' })
       setGenerateState('preflight-error')
       return
     }
-    // Require user to confirm the brief before running the pipeline
     if (brief.status !== 'approved') {
-      setPreflightMessage('Confirm the Brief first — click "Confirm Brief" on the Brief node.')
+      toast.warning('Brief not confirmed', {
+        message: 'Confirm the Brief before generating — click "Confirm Brief" on the Brief node.',
+        duration: 8000,
+      })
       setGenerateState('preflight-error')
       return
     }
 
     // Phase S0: validate skill manifest requires.locks
-    // If the selected skill declares required locks, check the canvas has them.
     const manifest = SKILL_MANIFESTS[skill]
     if (manifest?.requires?.locks?.length) {
       const missingLocks: string[] = []
@@ -688,23 +800,19 @@ function Flow({ projectId }: { projectId: string }) {
         const node = nodes.find((n) => n.type === requiredType)
         const isLocked = node?.data && (
           requiredType === 'character-bible'
-            // Character Bible: at least one character must be locked with a reference image
             ? (node.data as { characters?: Array<{ status: string; referenceImageUrl?: string }> })
                 .characters?.some((c) => c.status === 'locked' && c.referenceImageUrl)
-            // Other nodes: node itself must be locked
             : Boolean((node?.data as { locked?: boolean } | undefined)?.locked)
         )
         if (!isLocked) missingLocks.push(requiredType)
       }
       if (missingLocks.length > 0) {
         const labels: Record<string, string> = {
-          'character-bible': 'Character Bible (lock at least one character with a reference image)',
-          'style-lock': 'World / Style Lock (lock the style rules)',
+          'character-bible': 'Character Bible — lock at least one character with a reference image',
+          'style-lock': 'World / Style Lock — lock the style rules first',
         }
-        const missing = missingLocks
-          .map((t) => labels[t] ?? t)
-          .join('; ')
-        setPreflightMessage(`"${manifest.name}" requires: ${missing}`)
+        const missing = missingLocks.map((t) => labels[t] ?? t).join('\n')
+        toast.error(`"${manifest.name}" requires:`, { message: missing, duration: 0 })
         setGenerateState('preflight-error')
         return
       }
@@ -720,14 +828,14 @@ function Flow({ projectId }: { projectId: string }) {
           'episode-memory': 'Episode Memory node (for multi-episode continuity)',
         }
         const missing = missingNodes.map((t) => labels[t] ?? t).join(', ')
-        setPreflightMessage(`"${manifest.name}" works best with: ${missing} — add it or dismiss to continue.`)
-        // ponytail: missing nodes is a soft warning not a hard block (unlike missing locks)
-        // so we don't return here — we surface it but allow generation to proceed
+        toast.info(`"${manifest.name}" works best with: ${missing}`, {
+          message: 'Generation will continue — add the node for best results.',
+          duration: 8000,
+        })
+        // ponytail: soft warning, not a block
       }
     }
 
-    setPreflightMessage(undefined)
-    setGenerateError(undefined)
     setGenerateState('generating')
     setEdges((c) => c.map((e) => e.source === skillNode.id ? { ...e, data: { flowing: true } } : e))
 
@@ -776,11 +884,10 @@ function Flow({ projectId }: { projectId: string }) {
       if (!res.ok) {
         const body = await res.json().catch(() => ({ error: res.statusText }))
         if (res.status === 401) {
-          // Session expired — redirect to landing so the user can log in again
           window.location.href = '/?session=expired'
           return
         }
-        setGenerateError(body.error ?? 'Generation failed.')
+        toast.error('Generation failed', { message: body.error ?? 'Unknown error. Try again.' })
         setGenerateState('error')
         setEdges((c) => c.map((e) => ({ ...e, data: { flowing: false } })))
         return
@@ -793,9 +900,10 @@ function Flow({ projectId }: { projectId: string }) {
       setNodes(nextNodes)
       setEdges(nextEdges.map((e) => ({ ...e, data: { flowing: false } })))
       setGenerateState('idle')
+      toast.success('Script generated', { message: `${plan.stages.length} stage${plan.stages.length === 1 ? '' : 's'} created.` })
     } catch (err) {
       if (activeGenId.current !== genId) return
-      setGenerateError(err instanceof Error ? err.message : 'Generation failed.')
+      toast.error('Generation failed', { message: err instanceof Error ? err.message : 'Unknown error.' })
       setGenerateState('error')
       setEdges((c) => c.map((e) => ({ ...e, data: { flowing: false } })))
     }
@@ -810,6 +918,14 @@ function Flow({ projectId }: { projectId: string }) {
     const target = event.target as HTMLElement
     if (target.classList.contains('react-flow__pane') || target.classList.contains('react-flow__background')) {
       setMenu({ x: event.clientX, y: event.clientY })
+    }
+  }, [])
+
+  const handlePaneContextMenu = useCallback((event: React.MouseEvent) => {
+    event.preventDefault()
+    const target = event.target as HTMLElement
+    if (target.classList.contains('react-flow__pane') || target.classList.contains('react-flow__background')) {
+      setCtxMenu({ x: event.clientX, y: event.clientY })
     }
   }, [])
 
@@ -897,6 +1013,7 @@ function Flow({ projectId }: { projectId: string }) {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           onDoubleClick={handlePaneDoubleClick}
+          onContextMenu={handlePaneContextMenu}
           onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy' }}
           onDrop={handleCanvasDrop}
           nodeTypes={nodeTypes}
@@ -930,21 +1047,41 @@ function Flow({ projectId }: { projectId: string }) {
 
         <FloatingSidebar onDropNode={handleDropNode} projectId={projectId} />
 
+        {/* P1 — Detachable panels */}
+        <NodesLibraryPanel onDropNode={handleDropNode} projectId={projectId} />
+        <InspectorPanel selectedNode={selectedNode} />
+        {/* C1 — Coach panel */}
+        <CoachPanel coachState={coachState} />
+
         <TopBar
           projectName={projectName}
           onProjectNameChange={(name) => { setProjectName(name); updateProject(projectId, { name }) }}
           nodeCount={nodes.length}
           onGenerate={handleGenerate}
           generateState={generateState}
-          generateError={generateError}
-          preflightMessage={preflightMessage}
           settings={settings}
           onSettingsChange={handleSettingsChange}
+          panelToggles={
+            <>
+              <PanelToggleButton panelId="nodes-library" icon={Layers} label="Nodes" />
+              <PanelToggleButton panelId="inspector" icon={Info} label="Inspector" />
+              <PanelToggleButton panelId="coach" icon={Bot} label="Coach" />
+            </>
+          }
         />
         <CanvasControls mode={canvasMode} onModeChange={setCanvasMode} onShowHelp={() => setShowHelp(true)} />
+        <ToastStack />
 
         {nodes.length === 0 && <EmptyState onAddBrief={addBrief} />}
         {menu && <AddNodeMenu position={menu} onSelect={handleAddNode} onClose={() => setMenu(null)} />}
+        {ctxMenu && (
+          <CanvasContextMenu
+            x={ctxMenu.x}
+            y={ctxMenu.y}
+            onAddNode={() => { setMenu(ctxMenu); setCtxMenu(null) }}
+            onClose={() => setCtxMenu(null)}
+          />
+        )}
 
         {/* Keyboard shortcut help overlay */}
         {showHelp && (
@@ -972,7 +1109,8 @@ function Flow({ projectId }: { projectId: string }) {
               </div>
               <div className="space-y-1">
                 {[
-                  ['Delete / ⌫', 'Delete selected nodes (locked nodes are skipped)'],
+                  ['Delete / ⌫', 'Delete selected nodes (locked nodes are skipped) or edges'],
+                  ['Click edge', 'Select an edge — then Delete to remove it'],
                   ['Shift + click', 'Add node to selection'],
                   ['⌘D / Ctrl+D', 'Duplicate selected nodes'],
                   ['L', 'Lock selected nodes'],

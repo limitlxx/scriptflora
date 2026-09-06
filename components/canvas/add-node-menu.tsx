@@ -167,7 +167,7 @@ export function AddNodeMenu({
 
   // keep the menu inside the viewport
   const left = Math.min(position.x, window.innerWidth - 236)
-  const top = Math.min(position.y, window.innerHeight - 420)
+  const top  = Math.min(position.y, window.innerHeight - 480)
 
   return (
     <div
@@ -177,32 +177,35 @@ export function AddNodeMenu({
       style={{ left, top }}
       className="animate-in fade-in-0 zoom-in-95 shadow-float fixed z-40 w-56 rounded-xl border border-white/10 bg-[oklch(0.216_0.006_285/0.95)] p-1 backdrop-blur-xl duration-150"
     >
-      {GROUPS.map((group, gi) => (
-        <div
-          key={group.heading}
-          className={cn(gi > 0 && 'mt-1 border-t border-white/[0.06] pt-1')}
-        >
-          <p className="text-muted-foreground/70 px-2.5 py-1.5 text-[10px] font-medium tracking-[0.06em] uppercase">
-            {group.heading}
-          </p>
-          {group.items.map((item) => (
-            <button
-              key={item.label}
-              type="button"
-              role="menuitem"
-              onClick={() => onSelect({ type: item.type, kind: item.kind })}
-              className={cn(
-                'text-foreground/85 hover:text-foreground flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5',
-                'text-[12px] transition-colors duration-150 hover:bg-white/[0.07]',
-                'focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
-              )}
-            >
-              <item.icon className="text-muted-foreground size-3.5 shrink-0" />
-              {item.label}
-            </button>
-          ))}
-        </div>
-      ))}
+      {/* scrollable list — 72 = ~9 rows; remainder of viewport handles very small screens */}
+      <div className="max-h-[min(72dvh,520px)] overflow-y-auto scroll-slim">
+        {GROUPS.map((group, gi) => (
+          <div
+            key={group.heading}
+            className={cn(gi > 0 && 'mt-1 border-t border-white/[0.06] pt-1')}
+          >
+            <p className="text-muted-foreground/70 px-2.5 py-1.5 text-[10px] font-medium tracking-[0.06em] uppercase">
+              {group.heading}
+            </p>
+            {group.items.map((item) => (
+              <button
+                key={item.label}
+                type="button"
+                role="menuitem"
+                onClick={() => onSelect({ type: item.type, kind: item.kind })}
+                className={cn(
+                  'text-foreground/85 hover:text-foreground flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5',
+                  'text-[12px] transition-colors duration-150 hover:bg-white/[0.07]',
+                  'focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
+                )}
+              >
+                <item.icon className="text-muted-foreground size-3.5 shrink-0" />
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }

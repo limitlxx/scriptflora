@@ -56,7 +56,22 @@ export function ContentNode({ id, data, selected }: NodeProps<ContentNodeType>) 
   const [hovered, setHovered] = useState(false)
   const [promptOpen, setPromptOpen] = useState(false)
   const [previewOpen, setPreviewOpen] = useState(false)
+  // Local edit buffer — decouples typing from React Flow state updates (fixes cursor jump)
+  const [localContent, setLocalContent] = useState(data.content)
   const areaRef = useRef<HTMLTextAreaElement>(null)
+  const areaFocused = useRef(false)
+  const syncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cleanup debounce timer on unmount
+  useEffect(() => () => { if (syncTimer.current) clearTimeout(syncTimer.current) }, [])
+
+  // Keep local content in sync when external updates arrive (generation, regen)
+  // but only when not actively editing
+  useEffect(() => {
+    if (!areaFocused.current) {
+      setLocalContent(data.content)
+    }
+  }, [data.content])
 
   // Defensive: custom skill stages may produce unknown kind strings
   const meta = CONTENT_KIND_META[data.kind as ContentKind] ?? {
@@ -68,10 +83,10 @@ export function ContentNode({ id, data, selected }: NodeProps<ContentNodeType>) 
   const disabled = Boolean(data.locked)
   const generating = data.status === 'generating'
 
-  // grow the editor to fit its content, up to a ceiling
+  // Auto-resize only when not editing (generation arriving)
   useEffect(() => {
     const el = areaRef.current
-    if (!el) return
+    if (!el || areaFocused.current) return
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 260)}px`
   }, [data.content])
@@ -217,13 +232,36 @@ export function ContentNode({ id, data, selected }: NodeProps<ContentNodeType>) 
           ) : (
             <textarea
               ref={areaRef}
-              value={data.content}
+              value={localContent}
               disabled={disabled}
-              onChange={(e) => {
+              onFocus={() => { areaFocused.current = true }}
+              onBlur={() => {
+                areaFocused.current = false
+                // Flush local edits to store on blur
+                if (syncTimer.current) clearTimeout(syncTimer.current)
                 update(id, {
-                  content: e.target.value,
+                  content: localContent,
                   status: data.approved ? data.status : 'draft',
                 })
+                const el = areaRef.current
+                if (el) { el.style.height = 'auto'; el.style.height = `${Math.min(el.scrollHeight, 260)}px` }
+              }}
+              onChange={(e) => {
+                const val = e.target.value
+                setLocalContent(val)
+                // Only grow height — never shrink mid-edit (avoids cursor reset)
+                const el = e.target
+                if (el.scrollHeight > el.offsetHeight) {
+                  el.style.height = `${Math.min(el.scrollHeight, 260)}px`
+                }
+                // Debounced sync to store so word count stays live without cursor drops
+                if (syncTimer.current) clearTimeout(syncTimer.current)
+                syncTimer.current = setTimeout(() => {
+                  update(id, {
+                    content: val,
+                    status: data.approved ? data.status : 'draft',
+                  })
+                }, 300)
               }}
               placeholder={`Write or generate the ${meta.label.toLowerCase()}…`}
               className={cn(

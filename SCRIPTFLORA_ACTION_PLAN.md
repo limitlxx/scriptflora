@@ -180,7 +180,12 @@ Add from sidebar → "Character Bible". For each character:
 Add from sidebar → "World / Style Lock":
 1. Select medium (live-action / animation / hybrid).
 2. Fill visual rules, locations, hard constraints.
-3. When complete, click "Lock style rules — inject into all generations". This sets `status: approved` and the node injects its rules into every subsequent generation automatically.
+3. Optionally generate a **mood board / style references** — click the "Mood board / style references" toggle to expand the generator:
+   - Upload a source image (optional) to generate variations from it.
+   - Override the prompt or leave it blank to auto-build one from the rules above.
+   - Choose 1–4 variants and click "Generate mood board". Images are fetched via `/api/generate-reference-image`.
+   - Click any generated image to **pin** it as a persistent style reference on the node. Pinned images appear as a scrollable strip and can be removed individually.
+4. When complete, click "Lock style rules — inject into all generations". This sets `status: approved` and the node injects its rules into every subsequent generation automatically.
 
 **Continuity Log node**
 
@@ -517,7 +522,7 @@ HEYGEN_API_URL=            # default: https://api.heygen.com
 
 ---
 
-## Feature P1 — Detachable Panel System (queued)
+## Feature P1  — Detachable Panel System (queued)
 
 **Goal:** Photoshop-style panels that can dock to edges OR detach as freely movable floating windows. Users can re-attach floating panels. Layout persists per user/project.
 
@@ -547,7 +552,12 @@ type PanelLayout = {
 
 ### Actions
 - [ ] `lib/panel-store.ts` — Zustand store for panel layouts, persist to localStorage
-- [ ] `PanelShell` component — header with drag handle, Dock/Detach/Collapse controls, resize handles
+- [ ] `PanelShell` component — header with drag handle, Dock/Detach/Collapse/Reset/StackAll controls, resize handles
+  - Floating header controls: Collapse, Dock left, Dock right, **Reset position** (`resetPosition(id)`), **Stack all panels** (`stackAll()`), Close
+  - **Right-click header** opens a context menu with all panel actions (Collapse, Dock left/right, Detach, Reset position, Reset to default, Stack all panels, Close)
+  - "Reset position" snaps the floating panel back to its default viewport position
+  - "Stack all panels" tidies all floating panels into a stacked arrangement
+  - Right-click drag is ignored (context menu only); left-click drag detaches/moves as before
 - [ ] `DockZone` overlay component — show when dragging near edges
 - [ ] `usePanelDrag` hook — pointer events for drag (mouse + touch), constrain to viewport
 - [ ] `PanelPortal` — render floating panels in document body overlay (above canvas)
