@@ -5,10 +5,10 @@ import {
   AlertTriangle, Check, FileText,
   Lock, LockOpen, Plus, RefreshCw, Sparkles, Trash2, WandSparkles, X,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import {
-  PLATFORM_OPTIONS, TONE_OPTIONS,
+  GENERATION_MODE_OPTIONS, PLATFORM_OPTIONS, TONE_OPTIONS,
   type BriefNode as BriefNodeType, type BriefNodeData, type ToneId,
 } from '@/lib/flow-types'
 import { useNodeActions } from '@/components/canvas/node-action-context'
@@ -30,7 +30,15 @@ export function BriefNode({ id, data, selected }: NodeProps<BriefNodeType>) {
   // Has the user confirmed this brief? Gates pipeline generation
   const [confirmed, setConfirmed] = useState(() => data.status === 'approved')
 
-  const disabled = Boolean(data.locked)
+  // Keep confirmed in sync with persisted status (e.g. after page reload)
+  const prevStatus = useRef(data.status)
+  useEffect(() => {
+    if (data.status !== prevStatus.current) {
+      prevStatus.current = data.status
+      if (data.status === 'approved') setConfirmed(true)
+      else if (data.status === 'empty' || data.status === 'draft') setConfirmed(false)
+    }
+  }, [data.status])
 
   const set = <K extends keyof typeof data>(key: K, value: (typeof data)[K]) => {
     update(id, { [key]: value })
@@ -40,6 +48,7 @@ export function BriefNode({ id, data, selected }: NodeProps<BriefNodeType>) {
 
   const isEmpty = !data.title && !data.objective && !data.audience
   const isPartial = !isEmpty && (!data.title || !data.objective || !data.duration)
+  const disabled = Boolean(data.locked)
 
   const togglePlatform = (p: string) => {
     const platforms = data.platforms ?? []
@@ -96,7 +105,7 @@ export function BriefNode({ id, data, selected }: NodeProps<BriefNodeType>) {
             <>
               <ToolbarButton
                 icon={Sparkles}
-                label="Generate script from brief"
+                label="Run pipeline (generate script)"
                 onClick={() => act(id, 'regenerate')}
                 disabled={disabled || !confirmed}
                 tone="accent"
@@ -303,6 +312,53 @@ export function BriefNode({ id, data, selected }: NodeProps<BriefNodeType>) {
                 rows={2} className={cn(fieldClass, 'scroll-slim resize-none')}
               />
             </label>
+
+            {/* Generation Mode */}
+            <div>
+              <FieldLabel>Generation Mode</FieldLabel>
+              <div className="grid grid-cols-2 gap-1.5">
+                {GENERATION_MODE_OPTIONS.map((mode) => {
+                  const active = (data.generationMode ?? 'standard') === mode.id
+                  return (
+                    <button key={mode.id} type="button" disabled={disabled}
+                      aria-pressed={active}
+                      onClick={() => set('generationMode', mode.id)}
+                      className={cn(
+                        'nodrag rounded-lg border px-2.5 py-2 text-left text-[11px] transition-all duration-150',
+                        'focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none disabled:pointer-events-none',
+                        active
+                          ? 'border-primary/45 bg-accent-muted text-primary'
+                          : 'text-muted-foreground hover:text-foreground border-white/[0.08] bg-black/20 hover:border-white/[0.15]',
+                      )}
+                    >
+                      <span className="block font-medium leading-tight">{mode.label}</span>
+                      <span className="mt-0.5 block text-[9.5px] opacity-70 leading-tight">{mode.hint}</span>
+                    </button>
+                  )
+                })}
+              </div>
+              {/* Set-by-set: seconds per generation window */}
+              {(data.generationMode === 'set-by-set') && (
+                <div className="mt-2">
+                  <FieldLabel>Seconds per AI generation window</FieldLabel>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={5} max={30} step={1}
+                      value={data.secondsPerSet ?? 10}
+                      disabled={disabled}
+                      onChange={(e) => set('secondsPerSet', Math.max(5, Math.min(30, parseInt(e.target.value) || 10)))}
+                      className={cn(fieldClass, 'w-24')}
+                    />
+                    <span className="text-[11px] text-muted-foreground">sec / set (5–30 s)</span>
+                  </div>
+                  <p className="mt-1 text-[10px] text-muted-foreground/60">
+                    Scenes will be sized to fit your AI video model's generation window.
+                    Most models support 10 s today — set to 10 unless your tool differs.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           <NodeDivider />

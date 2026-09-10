@@ -2,6 +2,7 @@
 
 import {
   ArrowDownToLine,
+  BookMarked,
   BookOpen,
   ChevronDown,
   ChevronLeft,
@@ -27,7 +28,7 @@ import { useRef, useState, useEffect, type DragEvent, type ChangeEvent } from 'r
 import { cn } from '@/lib/utils'
 import { useAuth } from '@/components/auth-context'
 import { loadImportedSkills, saveImportedSkill, deleteImportedSkill, slugify, type ImportedSkill } from '@/lib/imported-skills'
-import type { AddNodeRequest } from './script-flow-canvas'
+import type { AddNodeRequest } from './add-node-menu'
 
 const library = [
   { label: 'Brief Intake', icon: FileText, request: { type: 'brief' as const } },
@@ -38,6 +39,7 @@ const library = [
   { label: 'Visual Directions', icon: WandSparkles, request: { type: 'content' as const, kind: 'visual' as const } },
   { label: 'CTA', icon: Target, request: { type: 'content' as const, kind: 'cta' as const } },
   { label: 'Continuity Checker', icon: ShieldCheck, request: { type: 'continuity' as const } },
+  { label: 'Episode Memory', icon: BookMarked, request: { type: 'episode-memory' as const } },
   { label: 'Multi-Format Output', icon: Grid2X2, request: { type: 'output' as const } },
   { label: 'Export', icon: ArrowDownToLine, request: { type: 'export' as const } },
 ]
@@ -241,6 +243,16 @@ export function FloatingSidebar({
                     >
                       <WandSparkles className="size-3 text-primary/70" />
                       Auteur Method
+                    </button>
+                    <button
+                      type="button"
+                      draggable
+                      onDragStart={(e) => startDrag(e, { type: 'skill' })}
+                      onClick={(e) => onDropNode({ type: 'skill' }, e)}
+                      className="flex items-center gap-2 rounded-md px-2 py-1.5 text-left text-[10px] text-muted-foreground hover:bg-white/[0.05] hover:text-foreground"
+                    >
+                      <FileText className="size-3 text-primary/70" />
+                      Series Script
                     </button>
                     {importedSkills.map((skill) => (
                       <div key={skill.id} className="flex items-center gap-1">

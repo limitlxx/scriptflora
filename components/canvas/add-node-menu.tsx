@@ -2,6 +2,7 @@
 
 import {
   ArrowDownToLine,
+  BookMarked,
   Camera,
   FileText,
   LayoutGrid,
@@ -63,6 +64,7 @@ const GROUPS: { heading: string; items: MenuItem[] }[] = [
     heading: 'Review & deliver',
     items: [
       { label: 'Continuity checker', icon: ShieldCheck, type: 'continuity' },
+      { label: 'Episode Memory', icon: BookMarked, type: 'episode-memory' },
       { label: 'Multi-format output', icon: LayoutGrid, type: 'output' },
       { label: 'Export', icon: ArrowDownToLine, type: 'export' },
     ],

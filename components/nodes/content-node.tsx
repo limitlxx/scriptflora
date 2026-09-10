@@ -58,6 +58,38 @@ export function ContentNode({ id, data, selected }: NodeProps<ContentNodeType>) 
   const [previewOpen, setPreviewOpen] = useState(false)
   const areaRef = useRef<HTMLTextAreaElement>(null)
 
+  // ponytail: local draft prevents setNodes on every keystroke (fixes cursor-jump bug).
+  // We sync to the store only on blur so ReactFlow never re-renders mid-edit.
+  const [localContent, setLocalContent] = useState(data.content)
+  const [localPrompt, setLocalPrompt] = useState(data.prompt ?? '')
+  const [localLabel, setLocalLabel] = useState(
+    data.index != null ? `${data.label} ${data.index}` : (data.label || '')
+  )
+
+  // Keep local state in sync when store changes from OUTSIDE (generation, regen)
+  const prevDataContent = useRef(data.content)
+  const prevDataPrompt = useRef(data.prompt ?? '')
+  const prevDataLabel = useRef(data.label)
+  useEffect(() => {
+    if (data.content !== prevDataContent.current) {
+      setLocalContent(data.content)
+      prevDataContent.current = data.content
+    }
+  }, [data.content])
+  useEffect(() => {
+    if ((data.prompt ?? '') !== prevDataPrompt.current) {
+      setLocalPrompt(data.prompt ?? '')
+      prevDataPrompt.current = data.prompt ?? ''
+    }
+  }, [data.prompt])
+  useEffect(() => {
+    const composed = data.index != null ? `${data.label} ${data.index}` : (data.label || '')
+    if (composed !== prevDataLabel.current) {
+      setLocalLabel(composed)
+      prevDataLabel.current = composed
+    }
+  }, [data.label, data.index])
+
   // Defensive: custom skill stages may produce unknown kind strings
   const meta = CONTENT_KIND_META[data.kind as ContentKind] ?? {
     label: data.label || data.kind || 'Stage',
@@ -74,10 +106,10 @@ export function ContentNode({ id, data, selected }: NodeProps<ContentNodeType>) 
     if (!el) return
     el.style.height = 'auto'
     el.style.height = `${Math.min(el.scrollHeight, 260)}px`
-  }, [data.content])
+  }, [localContent])
 
-  const words = data.content.trim()
-    ? data.content.trim().split(/\s+/).length
+  const words = localContent.trim()
+    ? localContent.trim().split(/\s+/).length
     : 0
 
   return (
@@ -98,7 +130,7 @@ export function ContentNode({ id, data, selected }: NodeProps<ContentNodeType>) 
               icon={Eye}
               label="Preview result"
               onClick={() => setPreviewOpen(true)}
-              disabled={!data.content || generating}
+              disabled={!localContent || generating}
             />
             <ToolbarButton
               icon={RefreshCw}
@@ -139,10 +171,10 @@ export function ContentNode({ id, data, selected }: NodeProps<ContentNodeType>) 
           icon={Icon}
           title={
             <input
-              value={data.index != null ? `${data.label} ${data.index}` : (data.label || meta.label)}
+              value={localLabel}
               disabled={disabled}
-              onChange={(e) => {
-                // Strip trailing index number when editing the base label
+              onChange={(e) => setLocalLabel(e.target.value)}
+              onBlur={(e) => {
                 const raw = e.target.value
                 const stripped = data.index != null
                   ? raw.replace(new RegExp(`\\s*${data.index}$`), '').trim()
@@ -173,16 +205,21 @@ export function ContentNode({ id, data, selected }: NodeProps<ContentNodeType>) 
             <div className="mb-3">
               <textarea
                 className="nodrag min-h-16 w-full resize-none rounded-lg border border-white/[0.07] bg-black/20 p-2.5 text-[11px] leading-relaxed text-foreground/85 outline-none placeholder:text-muted-foreground/40 focus:border-primary/35"
-                value={data.prompt ?? ''}
+                value={localPrompt}
                 disabled={disabled || generating}
-                onChange={(event) => update(id, { prompt: event.target.value })}
+                onChange={(e) => setLocalPrompt(e.target.value)}
+                onBlur={(e) => update(id, { prompt: e.target.value })}
                 placeholder={`Guide this ${meta.label.toLowerCase()}...`}
                 aria-label={`${meta.label} generation prompt`}
               />
-              {(data.prompt ?? '').trim() && !disabled && (
+              {(localPrompt).trim() && !disabled && (
                 <button
                   type="button"
-                  onClick={() => act(id, 'regenerate')}
+                  onClick={() => {
+                    // Flush local prompt to store before regen picks it up
+                    update(id, { prompt: localPrompt })
+                    act(id, 'regenerate')
+                  }}
                   disabled={generating}
                   className={cn(
                     'nodrag mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-lg px-2 py-1.5',
@@ -217,9 +254,10 @@ export function ContentNode({ id, data, selected }: NodeProps<ContentNodeType>) 
           ) : (
             <textarea
               ref={areaRef}
-              value={data.content}
+              value={localContent}
               disabled={disabled}
-              onChange={(e) => {
+              onChange={(e) => setLocalContent(e.target.value)}
+              onBlur={(e) => {
                 update(id, {
                   content: e.target.value,
                   status: data.approved ? data.status : 'draft',
@@ -262,7 +300,7 @@ export function ContentNode({ id, data, selected }: NodeProps<ContentNodeType>) 
             <button type="button" className="absolute right-4 top-4 text-muted-foreground transition-colors hover:text-foreground" onClick={() => setPreviewOpen(false)} aria-label="Close preview">×</button>
             <div className="mb-5 flex items-center gap-3 text-muted-foreground"><Icon className="size-4 text-primary" /><span className="text-[10px] font-medium uppercase tracking-[0.16em]">Result preview</span></div>
             <h2 id={`preview-title-${id}`} className="mb-5 pr-8 font-serif text-2xl leading-tight text-foreground">{data.label || meta.label}{data.index != null ? ` ${data.index}` : ''}</h2>
-            <p className="whitespace-pre-wrap text-[14px] leading-7 text-foreground/85">{data.content}</p>
+            <p className="whitespace-pre-wrap text-[14px] leading-7 text-foreground/85">{localContent}</p>
             <div className="mt-8 flex items-center justify-between border-t border-white/[0.07] pt-4 text-[10px] text-muted-foreground"><span>{words} words</span><span>{data.tokens?.toLocaleString() ?? 0} tok</span></div>
           </section>
         </div>

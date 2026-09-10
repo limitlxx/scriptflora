@@ -40,6 +40,13 @@ const BUILT_IN: SkillOption[] = [
     stages: '5 stages',
     icon: WandSparkles,
   },
+  {
+    id: 'series',
+    name: 'Series / Season Script',
+    tagline: 'Episode arcs, act beats, character continuity, episode close. For episodic drama, long-form series and courses.',
+    stages: '5 stages',
+    icon: FileText,
+  },
 ]
 
 export function SkillNode({ id, data, selected }: NodeProps<SkillNodeType>) {

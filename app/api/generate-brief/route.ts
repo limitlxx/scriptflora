@@ -78,7 +78,7 @@ export async function POST(request: Request) {
   const chatgpt = createChatGPTProxyProvider({ basePath: `${origin}/api/chatgpt`, fetch: proxyFetch })
 
   try {
-    const result = streamText({ model: chatgpt('gpt-5.4-mini'), system: SYSTEM, prompt, maxRetries: 1 })
+    const result = streamText({ model: chatgpt('gpt-5.5'), system: SYSTEM, prompt, maxRetries: 1 })
     let text = ''
     for await (const delta of result.textStream) text += delta
 

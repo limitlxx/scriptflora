@@ -16,7 +16,12 @@ import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Logo } from '@/components/logo'
 
-export type GenerateState = 'idle' | 'preflight-error' | 'generating' | 'error'
+export type GenerateState =
+  | 'idle'
+  | 'preflight-error'
+  | 'generating'
+  | 'error'
+  | { chunk: number; total: number }
 
 export type GenerationSettings = {
   model: string
@@ -24,7 +29,7 @@ export type GenerationSettings = {
   reasoning: 'low' | 'medium' | 'high'
 }
 
-const MODELS = ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini'] as const
+const MODELS = ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.3-codex-spark'] as const
 const SUPPORTS_FAST = new Set(['gpt-5.5', 'gpt-5.4'])
 
 async function logoutFromChatGPT() {
@@ -78,9 +83,10 @@ export function TopBar({
     router.replace('/')
   }
 
-  const busy = generateState === 'generating'
+  const busy = generateState === 'generating' || (typeof generateState === 'object')
   const hasError = generateState === 'preflight-error' || generateState === 'error'
   const errorMsg = preflightMessage ?? generateError
+  const chunkProgress = typeof generateState === 'object' ? generateState : null
   const fastSupported = SUPPORTS_FAST.has(settings.model)
 
   return (
@@ -189,8 +195,18 @@ export function TopBar({
               : 'bg-primary text-primary-foreground hover:opacity-90',
           )}
         >
-          {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
-          {busy ? 'Generating…' : hasError ? 'Retry' : 'Generate'}
+          {busy ? (
+            <>
+              <Loader2 className="size-3.5 animate-spin" />
+              {chunkProgress
+                ? `Chunk ${chunkProgress.chunk} / ${chunkProgress.total}`
+                : 'Generating…'}
+            </>
+          ) : hasError ? (
+            <>Retry</>
+          ) : (
+            <><Sparkles className="size-3.5" />Generate</>
+          )}
         </button>
       </div>
 

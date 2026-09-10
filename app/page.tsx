@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { Logo } from '@/components/logo'
 import { AuthButton } from '@/components/auth-button'
 import { SessionBanner } from '@/components/session-banner'
+import { Sparkles } from 'lucide-react'
 
 export default function LandingPage() {
   return (
@@ -62,6 +63,17 @@ export default function LandingPage() {
           <Suspense fallback={null}>
             <SessionBanner />
           </Suspense>
+
+          {/* Primary CTA: Try sandbox demo — no sign-up */}
+          <Link
+            href="/sandbox"
+            className="group flex items-center gap-2.5 rounded-xl bg-primary px-5 py-3 text-[13.5px] font-medium text-primary-foreground hover:opacity-90 transition-opacity"
+          >
+            <Sparkles className="size-4" />
+            Try free demo — no sign-up
+          </Link>
+
+          {/* Secondary: sign in with ChatGPT */}
           <Suspense fallback={
             <div className="flex items-center gap-2.5 rounded-xl px-4 py-2.5 text-[13px] text-muted-foreground">
               <div className="size-4 animate-spin rounded-full border-2 border-white/10 border-t-primary" />

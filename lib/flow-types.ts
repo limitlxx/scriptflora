@@ -12,7 +12,7 @@ export type NodeStatus =
   | 'approved'
   | 'error'
 
-export type SkillId = 'standard' | 'auteur' | (string & {})
+export type SkillId = 'standard' | 'auteur' | 'series' | (string & {})
 
 /** Standard pipeline stages */
 export type StandardKind = 'hook' | 'scene' | 'dialogue' | 'visual' | 'cta'
@@ -56,7 +56,7 @@ export type BriefNodeData = {
   audience: string
   /** Platforms: YouTube, Instagram, TikTok, etc. */
   platforms: string[]
-  /** e.g. "90s", "2 min" */
+  /** e.g. "90s", "2 min", "2 hours", "feature (120 min)" */
   duration: string
   tone: ToneId
   /** Hard constraints the model must never violate */
@@ -64,6 +64,10 @@ export type BriefNodeData = {
   additionalNotes: string
   status: NodeStatus
   locked?: boolean
+  /** Generation mode set by the user */
+  generationMode?: 'standard' | 'long-form' | 'series' | 'set-by-set'
+  /** Target seconds per AI video generation chunk (set-by-set mode) */
+  secondsPerSet?: number
 }
 
 export type SkillNodeData = {
@@ -136,7 +140,24 @@ export type SkillNode = Node<SkillNodeData, 'skill'>
 export type ContentNode = Node<ContentNodeData, 'content'>
 export type ContinuityNode = Node<ContinuityNodeData, 'continuity'>
 export type OutputNode = Node<OutputNodeData, 'output'>
-export type ExportNode = Node<ExportNodeData, 'export'>
+export type EpisodeMemoryNodeData = {
+  /**
+   * The character/world bible — locked facts that carry across ALL episodes.
+   * Injected into every episode's brief generation as hard constraints.
+   */
+  characterBible: string
+  /**
+   * Running recap of the previous episode: what changed, what threads are open.
+   * Cleared and updated by the user after each episode is finished.
+   */
+  previousEpisode: string
+  /** Episode counter — auto-incremented when user clicks "Next Episode" */
+  episodeNumber: number
+  status: NodeStatus
+  locked?: boolean
+}
+
+export type EpisodeMemoryNode = Node<EpisodeMemoryNodeData, 'episode-memory'>
 
 export type ScriptFloraNode =
   | BriefNode
@@ -145,14 +166,10 @@ export type ScriptFloraNode =
   | ContinuityNode
   | OutputNode
   | ExportNode
+  | EpisodeMemoryNode
 
 export type ScriptFloraNodeType = NonNullable<ScriptFloraNode['type']>
 export type ScriptFloraEdge = Edge<{ flowing?: boolean }>
-
-// Aliases — canvas components use ScriptFlora* naming
-export type ScriptFloraNode = ScriptFloraNode
-export type ScriptFloraNodeType = ScriptFloraNodeType
-export type ScriptFloraEdge = ScriptFloraEdge
 
 /* ------------------------------------------------------------------ */
 /* Generation contract                                                 */
@@ -180,6 +197,15 @@ export type GeneratedStage = {
 
 export type GenerationPlan = {
   stages: GeneratedStage[]
+  generationId: string
+}
+
+/** Returned by /api/generate when duration implies long-form chunking is needed. */
+export type ChunkingPlan = {
+  needsChunking: true
+  totalScenes: number
+  durationMinutes: number
+  chunks: Array<{ start: number; end: number }>
   generationId: string
 }
 
@@ -233,6 +259,17 @@ export const PLATFORM_OPTIONS = [
   'Cinema',
   'Broadcast TV',
   'Training / LMS',
+]
+
+export const GENERATION_MODE_OPTIONS: {
+  id: NonNullable<BriefNodeData['generationMode']>
+  label: string
+  hint: string
+}[] = [
+  { id: 'standard', label: 'Standard', hint: 'Short-form, single-pass generation' },
+  { id: 'long-form', label: 'Long-form', hint: 'Feature / multi-act, auto-chunked by AI' },
+  { id: 'series', label: 'Series / Season', hint: 'Episode-by-episode arc with continuity memory' },
+  { id: 'set-by-set', label: 'Set-by-set', hint: 'Each scene sized to AI video generation window' },
 ]
 
 export const EXPORT_FORMAT_OPTIONS: {

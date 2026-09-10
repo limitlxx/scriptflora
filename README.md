@@ -25,7 +25,9 @@ Most AI writing tools produce a single block of text that's hard to partially ed
 - **Visual canvas workflow** — brief and script sections are laid out as connected nodes on a React Flow canvas, not a wall of text.
 - **Skill-based pipelines** — choose a scriptwriting "skill" and the app generates the matching set of nodes:
   - **Standard Script** — Hook → Scenes/Beats → Dialogue/Narration → Visual Directions → CTA
+  - **Series Script** — Hook → Episode Outline → Dialogue Beats (×N) → Visual Notes → Episode Close; designed for episodic content
   - **Storyline Auteur Script** — a 5-stage funnel (Stageplay → Screenplay → Technical Screenplay → Production Summary → Auteur Script) optimized for generative video continuity
+- **Long-form / chunked generation** — projects with a duration over 10 minutes automatically split into scene chunks. The API returns a chunking plan (`needsChunking: true`, `chunks[]`) on the first call; subsequent calls generate one chunk at a time via `chunkIndex` / `chunkTotal` body params. This sidesteps output-token limits for feature-length films.
 - **Per-node regeneration** — regenerate any single node (e.g. just the Hook) while the full brief, key facts, and locked/upstream content are preserved as context.
 - **Lock / Edit / Approve controls** — lock strong sections so they're never overwritten, edit inline, and mark nodes as approved.
 - **Continuity & fact protection** — key facts from the brief are injected into every generation call, plus a basic Continuity Checker node flags missing facts or inconsistencies.
@@ -36,8 +38,9 @@ Most AI writing tools produce a single block of text that's hard to partially ed
 
 ## How It Works
 
-1. Sign in with **Continue with ChatGPT**.
-2. Fill out the **Brief Intake** node: topic, objective, audience, platform(s), duration, tone, and key facts.
+1. **Try the free demo** — click "Try free demo — no sign-up" on the landing page to run the sandbox wizard without an account.
+2. When ready, sign in with **Continue with ChatGPT** to save projects and access the full canvas.
+3. Fill out the **Brief Intake** node: topic, objective, audience, platform(s), duration, tone, and key facts.
 3. Pick a **Skill** (Standard Script or Storyline Auteur Script).
 4. ScriptFlora generates the corresponding node pipeline on the canvas.
 5. Review, edit, lock, and regenerate individual nodes as needed.
@@ -83,6 +86,25 @@ LWC_SECRET=your-stable-secret
 
 Refer to the [`opencoredev/login-with-chatgpt`](https://github.com/opencoredev/login-with-chatgpt) documentation for the full list of required variables and setup steps.
 
+#### Sandbox (unauthenticated demo)
+
+`POST /api/sandbox-generate-brief` and `POST /api/sandbox-generate` power a 3-step no-auth demo flow. Both routes bypass the Login with ChatGPT session check and use `SANDBOX_OPENAI_KEY` instead. Set it to a valid OpenAI API key to enable them; the routes return `503` when both keys are absent.
+
+Both routes will automatically fall back to `SANDBOX_GROQ_KEY` on any OpenAI error. Groq's OpenAI-compatible endpoint means no extra package is required — the existing `@ai-sdk/openai` adapter handles both.
+
+```bash
+SANDBOX_OPENAI_KEY=sk-...
+SANDBOX_GROQ_KEY=gsk_...   # optional fallback
+```
+
+The UI for this flow is `components/sandbox/sandbox-wizard.tsx` (`SandboxWizard`). It walks an unauthenticated visitor through:
+
+1. **Idea** — freeform description → `sandbox-generate-brief` builds a structured brief
+2. **Style** — choose Standard Script or Auteur Method
+3. **Script** — `sandbox-generate` runs the selected pipeline and renders all stages inline
+
+Results are ephemeral (no store integration). A `localStorage` key (`sf:sandbox:used`) records that the visitor has run one demo, surfacing the sign-up CTA.
+
 ### Run the dev server
 
 ```bash
@@ -105,6 +127,7 @@ scriptflora/
 ├── app/            # Next.js App Router pages and API routes
 ├── components/     # UI and canvas/node components
 ├── lib/            # Utilities, state store, and AI/generation helpers
+│   ├── flow-types.ts   # Shared TypeScript types: node data shapes, ContentKind, GenerationRequest/Plan, etc.
 ├── guides/         # Reference guides / internal docs
 ├── public/         # Static assets
 ├── PRD.md          # Product Requirements Document

@@ -29,7 +29,7 @@ Schema: {"score":number,"issues":[{"id":"string","severity":"error"|"warning"|"i
   const prompt = `Key facts (MUST be honoured):\n${keyFacts.length ? keyFacts.map((f) => `- ${f}`).join('\n') : '- None'}\n\nScript:\n${script.slice(0, 6000)}`
 
   try {
-    const result = streamText({ model: chatgpt('gpt-5.4-mini'), system, prompt, maxRetries: 1 })
+    const result = streamText({ model: chatgpt('gpt-5.5'), system, prompt, maxRetries: 1 })
     let text = ''
     for await (const delta of result.textStream) text += delta
 

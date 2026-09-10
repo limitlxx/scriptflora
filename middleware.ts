@@ -21,6 +21,6 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Run only on app routes, skip static files and API
+  // Run only on app routes, skip static files, API, and /sandbox
   matcher: ['/canvas/:path*', '/projects/:path*'],
 }

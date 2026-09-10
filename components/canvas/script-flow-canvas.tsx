@@ -18,6 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   CONTENT_KIND_META,
   type BriefNodeData,
+  type ChunkingPlan,
   type ContentKind,
   type ContentNodeData,
   type GenerationPlan,
@@ -35,6 +36,7 @@ import { ContentNode } from '@/components/nodes/content-node'
 import { ContinuityNode } from '@/components/nodes/continuity-node'
 import { OutputNode } from '@/components/nodes/output-node'
 import { ExportNode } from '@/components/nodes/export-node'
+import { EpisodeMemoryNode } from '@/components/nodes/episode-memory-node'
 import { TopBar, type GenerateState, type GenerationSettings } from './top-bar'
 import { CanvasControls, type CanvasMode } from './canvas-controls'
 import { AddNodeMenu, type AddNodeRequest } from './add-node-menu'
@@ -49,6 +51,7 @@ const nodeTypes: NodeTypes = {
   continuity: ContinuityNode,
   output: OutputNode,
   export: ExportNode,
+  'episode-memory': EpisodeMemoryNode,
 }
 
 const MINIMAP_COLOR: Record<string, string> = {
@@ -58,6 +61,7 @@ const MINIMAP_COLOR: Record<string, string> = {
   continuity: 'oklch(0.5 0.09 296)',
   output: 'oklch(0.5 0.09 296)',
   export: 'oklch(0.6 0.13 296)',
+  'episode-memory': 'oklch(0.48 0.11 310)',
 }
 
 let idCounter = 100
@@ -74,6 +78,11 @@ function seedIdCounter(nodes: ScriptFloraNode[]) {
 function buildNode(request: AddNodeRequest, position: { x: number; y: number }): ScriptFloraNode {
   const { type, kind } = request
   switch (type) {
+    case 'episode-memory':
+      return {
+        id: nextId('episode-memory'), type: 'episode-memory', position,
+        data: { characterBible: '', previousEpisode: '', episodeNumber: 1, status: 'empty' },
+      }
     case 'brief':
       return {
         id: nextId('brief'), type: 'brief', position,
@@ -119,6 +128,35 @@ function collectExistingContent(skillNodeId: string, allNodes: ScriptFloraNode[]
     if ((d.locked || d.approved) && d.stageKey) result[d.stageKey] = d.content
   }
   return result
+}
+
+/**
+ * Post-process a generation plan to ensure repeatable stage kinds have
+ * sequential index values and correct stageKeys.
+ * Models don't reliably include `index` — we derive it from kind frequency.
+ */
+function normaliseStages(plan: GenerationPlan): GenerationPlan {
+  // Count how many times each kind appears
+  const kindCount: Record<string, number> = {}
+  for (const s of plan.stages) {
+    kindCount[s.kind] = (kindCount[s.kind] ?? 0) + 1
+  }
+
+  // Assign indexes to repeatable kinds (any kind appearing > 1 time)
+  const kindCursor: Record<string, number> = {}
+  const stages = plan.stages.map((s) => {
+    if (kindCount[s.kind] <= 1) {
+      // Singleton — no index, stageKey is "skill:kind"
+      const skillId = s.stageKey?.split(':')[0] ?? 'standard'
+      return { ...s, index: undefined, stageKey: `${skillId}:${s.kind}` }
+    }
+    kindCursor[s.kind] = (kindCursor[s.kind] ?? 0) + 1
+    const idx = kindCursor[s.kind]
+    const skillId = s.stageKey?.split(':')[0] ?? 'standard'
+    return { ...s, index: idx, stageKey: `${skillId}:${s.kind}:${idx}` }
+  })
+
+  return { ...plan, stages }
 }
 
 function reconcile(plan: GenerationPlan, skillNode: ScriptFloraNode, allNodes: ScriptFloraNode[], allEdges: ScriptFloraEdge[]): { nodes: ScriptFloraNode[]; edges: ScriptFloraEdge[] } {
@@ -232,14 +270,15 @@ function Flow({ projectId }: { projectId: string }) {
       const saved = localStorage.getItem('sf:gen-settings')
       if (saved) {
         const parsed = JSON.parse(saved) as GenerationSettings
-        // Migrate old gpt-4o defaults to supported model
-        if (parsed.model === 'gpt-4o' || parsed.model === 'gpt-4o-mini') {
-          parsed.model = 'gpt-5.4-mini'
+        // Migrate legacy model names to the current supported list
+        const allowed = ['gpt-5.5', 'gpt-5.4', 'gpt-5.4-mini', 'gpt-5.3-codex-spark']
+        if (!allowed.includes(parsed.model)) {
+          parsed.model = 'gpt-5.5'
         }
         return parsed
       }
     } catch { /* ignore */ }
-    return { model: 'gpt-5.4-mini', fast: false, reasoning: 'medium' }
+    return { model: 'gpt-5.5', fast: false, reasoning: 'medium' }
   })
 
   const handleSettingsChange = useCallback((next: GenerationSettings) => {
@@ -254,7 +293,7 @@ function Flow({ projectId }: { projectId: string }) {
   const fitViewRef = useRef(fitView)
   useEffect(() => { fitViewRef.current = fitView }, [fitView])
 
-  // Autosave + expose nodes for export
+  // Autosave + expose nodes for export and cross-node communication
   useEffect(() => {
     ;(window as unknown as Record<string, unknown>).__ScriptFloraNodes = nodes
     saveProjectGraph(projectId, nodes, edges)
@@ -278,9 +317,12 @@ function Flow({ projectId }: { projectId: string }) {
       // Escape — close help or deselect
       if (e.key === 'Escape') { setShowHelp(false); return }
 
-      // Delete / Backspace — delete selected nodes (locked nodes are skipped)
+      // Delete / Backspace — delete selected nodes (locked nodes are skipped) and selected edges
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault()
+        // Delete selected edges first
+        setEdges((curEdges) => curEdges.filter((ed) => !ed.selected))
+        // Then delete selected (unlocked) nodes + their edges
         setNodes((cur) => {
           const toDelete = new Set(cur.filter((n) => n.selected && !n.data.locked).map((n) => n.id))
           if (toDelete.size === 0) return cur
@@ -357,12 +399,17 @@ function Flow({ projectId }: { projectId: string }) {
     setNodes((cur) => cur.map((n) => n.id === id ? ({ ...n, data: { ...n.data, ...patch } } as ScriptFloraNode) : n))
   }, [setNodes])
 
+  // Expose update globally so continuity node can flag content nodes by id
+  useEffect(() => {
+    ;(window as unknown as Record<string, unknown>).__ScriptFloraUpdateNode = update
+  }, [update])
+
   // Single-node regenerate via API
   const regenerateSingleNode = useCallback(async (id: string, allNodes: ScriptFloraNode[], allEdges: ScriptFloraEdge[]) => {
     const node = allNodes.find((n) => n.id === id)
     if (!node || node.type !== 'content') return
     const d = node.data as ContentNodeData
-    if (d.locked) return
+    if (d.locked || d.approved) return
 
     const skillNode = allNodes.find((n) => n.type === 'skill' && allEdges.some((e) => e.source === n.id && e.target === id))
     const briefNode = skillNode ? allNodes.find((n) => n.type === 'brief' && allEdges.some((e) => e.source === n.id && e.target === skillNode.id)) : null
@@ -385,7 +432,11 @@ function Flow({ projectId }: { projectId: string }) {
 
     const brief = briefNode.data as BriefNodeData
     const req: GenerationRequest = {
-      brief: { ...brief, additionalNotes: `${brief.additionalNotes ?? ''}\n\nRegenerate only: "${d.label}" (stageKey: ${d.stageKey ?? d.kind}).`.trim() },
+      brief: { ...brief, additionalNotes: [
+        brief.additionalNotes ?? '',
+        d.prompt ? `Node prompt override: ${d.prompt}` : '',
+        `Regenerate only: "${d.label}" (stageKey: ${d.stageKey ?? d.kind}).`,
+      ].filter(Boolean).join('\n\n').trim() },
       skill,
       skillMarkdown: (skillNode.data as { skillMarkdown?: string }).skillMarkdown ?? '',
       existingContent: { [d.stageKey ?? '']: d.content },
@@ -519,6 +570,23 @@ function Flow({ projectId }: { projectId: string }) {
       existingContent: collectExistingContent(skillNode.id, nodes, edges),
     }
 
+    // Inject generation mode context into the request as extra notes
+    const modeNotes: string[] = []
+    if (brief.generationMode === 'long-form') {
+      modeNotes.push('Generation mode: long-form. Write extended scenes with full character and location detail.')
+    } else if (brief.generationMode === 'series') {
+      modeNotes.push('Generation mode: series. This is one episode in an ongoing series — maintain character and world continuity.')
+    } else if (brief.generationMode === 'set-by-set') {
+      const secs = brief.secondsPerSet ?? 10
+      modeNotes.push(`Generation mode: set-by-set. Each scene/shot must be written to fit a ${secs}-second AI video generation window. Keep scenes tight, single-location, minimal character movement.`)
+    }
+    if (modeNotes.length > 0) {
+      req.brief = {
+        ...req.brief,
+        additionalNotes: [req.brief.additionalNotes, ...modeNotes].filter(Boolean).join('\n\n'),
+      }
+    }
+
     try {
       const res = await fetch('/api/generate', {
         method: 'POST',
@@ -549,7 +617,64 @@ function Flow({ projectId }: { projectId: string }) {
       const plan: GenerationPlan = await res.json()
       if (activeGenId.current !== genId) return
 
-      const { nodes: nextNodes, edges: nextEdges } = reconcile(plan, skillNode, nodes, edges)
+      // ── Long-form chunked generation ───────────────────────────────────────
+      // If the API signals that chunking is needed, fire sequential chunk calls
+      // and merge all stages into one final reconcile pass.
+      type MaybeChunking = GenerationPlan & Partial<ChunkingPlan>
+      const maybeChunking = plan as unknown as MaybeChunking
+      if ('needsChunking' in maybeChunking && maybeChunking.needsChunking) {
+        const cp = maybeChunking as unknown as ChunkingPlan
+        const allStages: GenerationPlan['stages'] = []
+        const totalChunks = cp.chunks.length
+
+        for (let ci = 0; ci < totalChunks; ci++) {
+          if (activeGenId.current !== genId) return
+          // Show which chunk we're on before each request
+          setGenerateState({ chunk: ci + 1, total: totalChunks })
+          const chunkReq = {
+            ...req,
+            chunkIndex: ci + 1,
+            chunkTotal: totalChunks,
+            totalScenes: cp.totalScenes,
+          }
+          const chunkRes = await fetch('/api/generate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-sf-model': settings.model,
+              'x-sf-reasoning-effort': settings.reasoning,
+              ...(settings.fast ? { 'x-sf-service-tier': 'fast' } : {}),
+            },
+            body: JSON.stringify(chunkReq),
+          })
+          if (activeGenId.current !== genId) return
+          if (!chunkRes.ok) {
+            const body = await chunkRes.json().catch(() => ({ error: chunkRes.statusText }))
+            setGenerateError(body.error ?? 'Chunk generation failed.')
+            setGenerateState('error')
+            setEdges((c) => c.map((e) => ({ ...e, data: { flowing: false } })))
+            return
+          }
+          const chunkPlan: GenerationPlan = await chunkRes.json()
+          allStages.push(...chunkPlan.stages)
+          // Report live chunk progress to TopBar
+          setGenerateState(
+            ci + 1 < totalChunks
+              ? { chunk: ci + 1, total: totalChunks }
+              : 'idle',
+          )
+        }
+
+        if (activeGenId.current !== genId) return
+        const fullPlan: GenerationPlan = { stages: allStages, generationId: nanoid(10) }
+        const { nodes: nextNodes, edges: nextEdges } = reconcile(normaliseStages(fullPlan), skillNode, nodes, edges)
+        setNodes(nextNodes)
+        setEdges(nextEdges.map((e) => ({ ...e, data: { flowing: false } })))
+        setGenerateState('idle')
+        return
+      }
+
+      const { nodes: nextNodes, edges: nextEdges } = reconcile(normaliseStages(plan), skillNode, nodes, edges)
       setNodes(nextNodes)
       setEdges(nextEdges.map((e) => ({ ...e, data: { flowing: false } })))
       setGenerateState('idle')
@@ -732,7 +857,7 @@ function Flow({ projectId }: { projectId: string }) {
               </div>
               <div className="space-y-1">
                 {[
-                  ['Delete / ⌫', 'Delete selected nodes (locked nodes are skipped)'],
+                  ['Delete / ⌫', 'Delete selected nodes or edges (locked nodes are skipped)'],
                   ['Shift + click', 'Add node to selection'],
                   ['⌘D / Ctrl+D', 'Duplicate selected nodes'],
                   ['L', 'Lock selected nodes'],
